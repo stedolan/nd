@@ -1,0 +1,37 @@
+dn: dc=netsoc,dc=tcd,dc=ie
+objectClass: dcObject
+objectClass: organization
+dc: netsoc
+o: Dublin University Internet Society
+
+dn: cn=root,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalRole
+cn: root
+
+dn: ou=users,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: users
+description: Netsoc users, both members and non-members
+
+dn: ou=groups,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=usergroups,ou=groups,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: usergroups
+
+dn: ou=sourceprojects,ou=groups,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: sourceprojects
+
+dn: ou=services,ou=groups,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: services
+
+dn: ou=hosts,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: hosts
+
+
+

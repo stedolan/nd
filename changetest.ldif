@@ -1,0 +1,4 @@
+dn: cn=mygroup,ou=groups,dc=netsoc,dc=tcd,dc=ie
+changetype: modify
+delete: objectClass
+

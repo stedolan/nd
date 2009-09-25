@@ -1,0 +1,75 @@
+# The Private Enterprise Number assigned to TCD Netsoc :D
+objectIdentifier netsoc 1.3.6.1.4.1.33566
+# Netsoc LDAP attributes
+objectIdentifier na netsoc:1
+# Netsoc LDAP objectclasses
+objectIdentifier no netsoc:2
+
+# OIDs for LDAP syntaxes
+objectIdentifier syntax 1.3.6.1.4.1.1466.115.121.1
+objectIdentifier boolean syntax:7
+objectIdentifier directoryString syntax:15
+objectIdentifier distinguishedName syntax:12
+objectIdentifier integer syntax:27
+objectIdentifier numericString syntax:36
+objectIdentifier OID syntax:38
+objectIdentifier octetString syntax:40
+
+
+# ISS username
+attributetype ( na:1
+ NAME 'tcdnetsoc-ISS-username'
+ DESC 'ISS username'
+ SINGLE-VALUE
+ EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
+
+
+# ID number given on the membership card
+attributetype ( na:2
+ NAME 'tcdnetsoc-card-no'
+ DESC 'Membership card number'
+ EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
+
+
+# Year of membership, e.g. "2008-2009"
+# This attribute corresponds to payment of the membership fee for that year
+# A given user often has multiple values for this attribute 
+attributetype ( na:3
+ NAME 'tcdnetsoc-membership-year'
+ DESC 'Year of membership'
+ EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
+
+
+
+
+# A member or user of Netsoc
+# This covers every person in the database. Those who are currently paid-up members
+# will have a tcdnetsoc-membership-year attribute storing the current year.
+# For those who don't have usernames (e.g. members who paid but never signed up for
+# an account, the uid field is the same as the uidNumber field).
+# The RDN is given by the uid field (so, user mu may be in LDAP with the DN of
+# "uid=mu,ou=people,dc=netsoc,dc=tcd,dc=ie"
+# Details pertaining to a shell account are stored in the posixAccount objectclass
+# (see nis.schema), so that pam+ldap is possible.
+# Mail aliases are also stored here
+# there may be other attributes inherited from inetOrgPerson and its parents
+# useful ones include sn (required), cn (required), userPassword, jpegPhoto,
+# mail, userSMIMECertificate.
+# A user may also have an amavisAccount object for amavis prefs.
+objectclass ( no:1
+ NAME 'tcdnetsoc-person'
+ DESC 'Member or user of Trinity College Dublin Internet Society'
+ SUP inetOrgPerson
+ STRUCTURAL
+ MUST (
+  uidNumber )
+ MAY (
+  uid $ tcdnetsoc-ISS-username $ tcdnetsoc-card-no $ tcdnetsoc-membership-year ) )
+
+objectclass ( no:2
+ NAME 'tcdnetsoc-group'
+ DESC 'Group of TCD Netsoc accounts'
+ SUP top
+ AUXILIARY
+ MUST ( gidNumber )
+ MAY ( member ) )
