@@ -1,5 +1,15 @@
 # sample data
 
+dn: cn=next-uid,dc=netsoc,dc=tcd,dc=ie
+cn: next-uid
+serialNumber: 1000
+objectClass: tcdnetsoc-idnum
+
+dn: cn=next-gid,dc=netsoc,dc=tcd,dc=ie
+cn: next-gid
+serialNumber: 20000
+objectClass: tcdnetsoc-idnum
+
 dn: uid=mu,ou=users,dc=netsoc,dc=tcd,dc=ie
 objectClass: tcdnetsoc-person
 uid: mu

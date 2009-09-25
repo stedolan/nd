@@ -73,3 +73,11 @@ objectclass ( no:2
  AUXILIARY
  MUST ( gidNumber )
  MAY ( member ) )
+
+
+objectclass ( no:3
+ NAME 'tcdnetsoc-idnum'
+ DESC 'Object to hold an ID number'
+ SUP top
+ STRUCTURAL
+ MUST ( cn $ serialNumber ) )

@@ -6,7 +6,8 @@ import grp
 import getpass
 import ldap
 import ldapurl
-
+import random
+import time
 
 valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
 root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
@@ -60,6 +61,33 @@ def ldap_byuid(uid):
         return root_DN
     else:
         return "uid=%s,ou=users,dc=netsoc,dc=tcd,dc=ie" % uid
+
+def _ldap_get_num(dn):
+    l = ldap_connect()
+    return int(l.search_s(dn, ldap.SCOPE_BASE, attrlist=['serialNumber'])[0][1]['serialNumber'][0])
+
+def _ldap_set_num(dn, old, new):
+    l = ldap_connect()
+    l.modify_s(dn, [
+        (ldap.MOD_DELETE, 'serialNumber', str(old)),
+        (ldap.MOD_ADD, 'serialNumber', str(new))])
+
+def _ldap_alloc_inc(dn, inc):
+    for attempt in range(3):
+        currid = _ldap_get_num(dn)
+        try:
+            _ldap_set_num(dn, currid, currid+inc)
+        except ldap.NO_SUCH_ATTRIBUTE, e:
+            time.sleep(random.random() * 0.1)
+            continue
+        return currid
+    raise e
+
+
+def ldap_alloc_uid():
+    return _ldap_alloc_inc('cn=next-uid,dc=netsoc,dc=tcd,dc=ie', +1)
+def ldap_alloc_gid():
+   return _ldap_alloc_inc('cn=next-gid,dc=netsoc,dc=tcd,dc=ie', -1)
 
 def ldap_bygid(gid):
     '''Returns the LDAP DN of the given group.
