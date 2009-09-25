@@ -24,13 +24,6 @@ attributetype ( na:1
  EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
 
 
-# ID number given on the membership card
-attributetype ( na:2
- NAME 'tcdnetsoc-card-no'
- DESC 'Membership card number'
- EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
-
-
 # Year of membership, e.g. "2008-2009"
 # This attribute corresponds to payment of the membership fee for that year
 # A given user often has multiple values for this attribute 
@@ -64,7 +57,7 @@ objectclass ( no:1
  MUST (
   uidNumber )
  MAY (
-  uid $ tcdnetsoc-ISS-username $ tcdnetsoc-card-no $ tcdnetsoc-membership-year ) )
+  uid $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year ) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'
