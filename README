@@ -1,0 +1,14 @@
+Hacking on nd:
+
+Install OpenLDAP
+As root:
+rm /etc/ldap/slapd.conf
+ln -s <nd repo>/slapd.conf /etc/ldap/slapd.conf
+ln -s <nd repo>/schema /etc/ldap/schema/netsoc.schema
+/etc/init.d/slapd restart
+
+To populate the database (warning: deletes whatever's there!)
+ldopt="-D cn=root,dc=netsoc,dc=tcd,dc=ie -x -w foo -h 127.0.0.1"
+ldapdelete $ldopt -r 'dc=netsoc,dc=tcd,dc=ie';
+cat <nd repo>/{core.ldif,sampledata.ldif} |   ldapadd $ldopt
+
