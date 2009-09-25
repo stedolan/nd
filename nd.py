@@ -79,7 +79,7 @@ def ldap_bygid(gid):
         gid = str(gid).strip()
         if not valid_username.match(gid):
             raise ValueError("Invalid GID")
-    return "gid=%s,ou=groups,dc=netsoc,dc=tcd,dc=ie" % gid
+    return "cn=%s,ou=groups,dc=netsoc,dc=tcd,dc=ie" % gid
 
 _ldap_conn = None
 
@@ -133,20 +133,24 @@ class LDAPObject(object):
         return self.attrs.get(name) or []
     def set(self, name, val):
         self._ensure_attrs()
-        if name in self.attrs and not len(self.attrs[name]) == 1:
-            raise KeyError("Multiple values for attribute %s" % name)
         l = ldap_connect()
-        if l.modify_s(self.dn, [(ldap.MOD_REPLACE, name, val)])[0] != RES_MODIFY:
+        if l.modify_s(self.dn, [(ldap.MOD_REPLACE, name, val)])[0] != ldap.RES_MODIFY:
             raise Exception("Couldn't modify value")
     def __getitem__(self, name):
         self._ensure_attrs()
         return self.attrs.get(name)
-    def add(self, *args):
-        attrs = args[::2]
-        values = args[1::2]
-        if len(attrs) != len(values):
-            raise TypeError("Wrong number of arguments to add")
-        
+
+    @classmethod
+    def create(cls, dn, **kw):
+        l = ldap_connect()
+        modlist = []
+        for attr in kw:
+            val = kw[attr]
+            if type(val) != list: val=[val]
+            for v in val:
+                modlist.append((attr, str(v)))
+        print modlist
+        l.add_s(dn, modlist)
 
     def __repr__(self):
         return '<' + type(self).__name__ + " " + self.dn + '>'
@@ -181,7 +185,7 @@ class User(LDAPObject):
     def everyone(cls):
         return cls.all_objs()
     @classmethod
-    def members(cls):
+    def all_members(cls):
         return cls.by_attrs(tcdnetsoc_membership_year=current_session())
     @classmethod
     def with_account(cls):
@@ -189,14 +193,39 @@ class User(LDAPObject):
     @classmethod
     def without_account(cls):
         return cls.cust_search(filterstr='(!(objectClass=posixAccount))')
+    @classmethod
+    def create(cls, dn, **kw):
+        if 'uid' not in kw:
+            kw['uid'] = dn
+        if 'objectClass' not in kw:
+            kw['objectClass'] = []
+        if 'tcdnetsoc-person' not in kw['objectClass']:
+            kw['objectClass'].append('tcdnetsoc-person')
+
+        LDAPObject.create(ldap_byuid(dn), **kw)
 
 class Group(LDAPObject):
     base_dn = 'ou=groups,dc=netsoc,dc=tcd,dc=ie'
     def __init__(self, gid, **kw):
         LDAPObject.__init__(self, ldap_bygid(gid), **kw)
+    def members(self):
+        l = ldap_connect()
+        memberlist = l.search_s(base=self.dn, scope=ldap.SCOPE_BASE, attrlist=['member'])[0][1]['member']
+        for u in memberlist:
+            yield User(u)
     @classmethod
     def posix_groups(cls):
         return cls.by_attrs(objectClass='posixGroup')
+    @classmethod
+    def create(cls, dn, **kw):
+        if 'cn' not in kw:
+            kw['cn'] = dn
+        if 'objectClass' not in kw:
+            kw['objectClass'] = []
+        if 'tcdnetsoc-group' not in kw['objectClass']:
+            kw['objectClass'].append('tcdnetsoc-group')
+        LDAPObject.create(ldap_bygid(dn), **kw)
+
     
 class Service(Group):
     base_dn = 'ou=services,ou=groups,dc=netsoc,dc=tcd,dc=ie'

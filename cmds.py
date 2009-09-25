@@ -40,22 +40,25 @@ def search(*args):
         err()
 
     args = args[1:]
-    if len(args) % 2 != 0:
-        err("search called with an odd number of parameters")
-    #FIXME: validate special chars??
-    keys = args[::2]
-    values = args[1::2]
-    filters = []
-    for i in len(keys):
-        if keys[i] == "ldap":
-            filters.append(values[i])
-        elif keys[i] == "in":
-            err("<in> filters unsupported for now")
-        else:
-            filters.append("(%s=*%s*)" % (keys[i], values[i]))
-    filter = "(&" + "".join(filters) + ")"
+    if len(args) == 1:
+        filter="(|(uid=*%s*)(cn=*%s*))" % (args[0],args[0])
+    else:
+        if len(args) % 2 != 0:
+            err("search called with an odd number of parameters")
+        #FIXME: validate special chars??
 
-    for i in type.cust_search(filter):
+        keys = args[::2]
+        values = args[1::2]
+        filters = []
+        for i in range(len(keys)):
+            if keys[i] == "ldap":
+                filters.append(values[i])
+            elif keys[i] == "in":
+                err("<in> filters unsupported for now")
+            else:
+                filters.append("(%s=*%s*)" % (keys[i], values[i]))
+        filter = "(&" + "".join(filters) + ")"
+    for i in type.cust_search(filterstr=filter):
         print i
 
 
@@ -90,7 +93,8 @@ def query(objspec, type, args):
             for value in obj.get_all(attr):
                 print attr + ": " + value
     elif cmd == 'set':
-        err("Unimplemented")
+        obj = type(objspec)
+        obj.set(args[1], args[2])
     else:
         err("Unknown command %s" % cmd)
 
@@ -134,7 +138,7 @@ def host(*args):
 
 
 
-cmdfuncs = [myself, user, group, host, help]
+cmdfuncs = [myself, user, group, host, help, search]
 
 def getfunc(name):
     for f in cmdfuncs:
