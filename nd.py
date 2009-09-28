@@ -8,6 +8,7 @@ import ldap
 import ldapurl
 import random
 import time
+import collections
 
 valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
 root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
@@ -132,6 +133,32 @@ def ldap_connect(uid = None, pwd = None):
     return l
 
 
+
+
+match_exact = lambda attr, value: "(%s=%s)" % (attr, value)
+match_substring = lambda attr, value: "(%s=*%s*)" % (attr, value)
+match_exact_or_substring = lambda attr, value: "(|%s%s)" % (match_exact(attr, value), match_substring(attr, value))
+match_user = lambda attr, value: "(%s=%s)" % (attr, ldap_byuid(value))
+match_group = lambda attr, value: "(%s=%s)" % (attr, ldap_bygid(value))
+attribute_match_filters = collections.defaultdict(lambda:match_exact_or_substring, {
+    'uid': match_exact,
+    'gid': match_exact,
+    'member': match_user,
+    'memberOf': match_group,
+})
+
+def ldap_filter_match(attr, value):
+    attr = str(attr).replace("_","-")
+    return attribute_match_filters[attr](attr, str(value))
+def ldap_filter_or(*filts):
+    return "(|" + "".join(filts) + ")"
+def ldap_filter_and(*filts):
+    return "(&" + "".join(filts) + ")"
+
+
+
+
+
 class LDAPObject(object):
     base_dn = 'dc=netsoc,dc=tcd,dc=ie'
     def __init__(self, dn, attrs_desired=None, **searchq):
@@ -185,6 +212,7 @@ class LDAPObject(object):
 
     @classmethod
     def cust_search(cls, **searchq):
+        print searchq
         l = ldap_connect()
         msgid = l.search(base=cls.base_dn, scope=ldap.SCOPE_SUBTREE, **searchq)
         while 1:
@@ -198,8 +226,8 @@ class LDAPObject(object):
 
     @classmethod
     def by_attrs(cls, **attrs):
-        return cls.cust_search(filterstr='(&' +
-            "".join('(' + k.replace("_","-") + '=*' + v + '*)' for k,v in attrs.items()) + ')')
+        return cls.cust_search(ldap_filter_and(*[
+            ldap_filter_match(k,v) for k,v in attrs.items()]))
     @classmethod
     def all_objs(cls, **attrs):
         return cls.by_attrs()

@@ -34,6 +34,7 @@ def myself(*args):
     return user(str(os.getuid()), *args)
 
 def search(*args):
+    '''Search for particular users, groups, etc.'''
     try:
         type = objtypes[args[0]]
     except:
@@ -41,7 +42,8 @@ def search(*args):
 
     args = args[1:]
     if len(args) == 1:
-        filter="(|(uid=*%s*)(cn=*%s*))" % (args[0],args[0])
+        filter=ldap_filter_or(ldap_filter_match('uid', args[0]),
+                              ldap_filter_match('cn', args[0]))
     else:
         if len(args) % 2 != 0:
             err("search called with an odd number of parameters")
@@ -56,8 +58,8 @@ def search(*args):
             elif keys[i] == "in":
                 err("<in> filters unsupported for now")
             else:
-                filters.append("(%s=*%s*)" % (keys[i], values[i]))
-        filter = "(&" + "".join(filters) + ")"
+                filters.append(ldap_filter_match(keys[i], values[i]))
+        filter = ldap_filter_and(*filters)
     for i in type.cust_search(filterstr=filter):
         print i
 
