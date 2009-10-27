@@ -62,8 +62,8 @@ objectclass ( no:1
 objectclass ( no:2
  NAME 'tcdnetsoc-group'
  DESC 'Group of TCD Netsoc accounts'
- SUP top
- AUXILIARY
+ SUP posixGroup
+ STRUCTURAL
  MUST ( gidNumber )
  MAY ( member ) )
 

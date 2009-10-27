@@ -5,7 +5,7 @@ import sys
 from nd import *
 
 
-objtypes = {'user':User, 'group':Group, 'host':Host, 'service':Service, 'sourceproject':SourceProject}
+objtypes = {'user':User, 'group':Group }
 
 
 def help(*args):
@@ -42,8 +42,7 @@ def search(*args):
 
     args = args[1:]
     if len(args) == 1:
-        filter=ldap_filter_or(ldap_filter_match('uid', args[0]),
-                              ldap_filter_match('cn', args[0]))
+        filter = SearchFilter.any(uid=args[0], cn=args[0])
     else:
         if len(args) % 2 != 0:
             err("search called with an odd number of parameters")
@@ -54,13 +53,11 @@ def search(*args):
         filters = []
         for i in range(len(keys)):
             if keys[i] == "ldap":
-                filters.append(values[i])
-            elif keys[i] == "in":
-                err("<in> filters unsupported for now")
+                filters.append(SearchFilter.from_raw_filter(values[i]))
             else:
-                filters.append(ldap_filter_match(keys[i], values[i]))
-        filter = ldap_filter_and(*filters)
-    for i in type.cust_search(filterstr=filter):
+                filters.append(SearchFilter.attr_match(keys[i], values[i]))
+        filter = SearchFilter.all(*filters)
+    for i in type.search(filter):
         print i
 
 
@@ -71,10 +68,10 @@ def searchuser(*args):
       searchuser <type> <property> <value> [<property> <value>...]: Search by any property
         <type> is user, group or host
         If multiple properties are specified, all are matched.
-        The property "in" specifies that the user must be in the specified group.
+        The property "memberOf" specifies that the user must be in the specified group.
         The property "ldap" specifies an arbitrary LDAP search filter
         Examples:
-          search user cn stephen in council
+          search user cn stephen memberOf council
              - Finds users whose full names contain "Stephen" and are in the "council" group
           search user tcd-ISS-username sdolan
              - Finds the user whose College username is "sdolan"
@@ -88,17 +85,20 @@ def searchuser(*args):
     
 
 def query(objspec, type, args):
-    cmd = args[0]
-    if cmd == 'get':
-        obj = type(objspec, attrs_desired=args[1:] or None)
-        for attr in obj:
-            for value in obj.get_all(attr):
-                print attr + ": " + value
-    elif cmd == 'set':
+    if len(args) == 0:
         obj = type(objspec)
-        obj.set(args[1], args[2])
+        print obj.info()
     else:
-        err("Unknown command %s" % cmd)
+        cmd = args[0]
+        if cmd == 'get':
+            obj = type(objspec)
+            for attr, value in obj.get_all_attribute_pairs():
+                print attr + ": " + value
+        elif cmd == 'set':
+            obj = type(objspec)
+            obj.set_attribute(args[1], args[2])
+        else:
+            err("Unknown command %s" % cmd)
 
 
 
@@ -152,7 +152,7 @@ def run_command(args):
     if not args:
         help()
     else:
-        ldap_connect('cn=root,dc=netsoc,dc=tcd,dc=ie','foo')
+#        ldap_connect('cn=root,dc=netsoc,dc=tcd,dc=ie','foo')
         func = getfunc(args.pop(0))
         if not func:
             help()

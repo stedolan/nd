@@ -1,32 +1,25 @@
 # sample data
 
-dn: cn=next-uid,dc=netsoc,dc=tcd,dc=ie
-cn: next-uid
-serialNumber: 1000
-objectClass: tcdnetsoc-idnum
-
-dn: cn=next-gid,dc=netsoc,dc=tcd,dc=ie
-cn: next-gid
-serialNumber: 20000
-objectClass: tcdnetsoc-idnum
-
-dn: uid=mu,ou=users,dc=netsoc,dc=tcd,dc=ie
+dn: uid=mu,ou=User,dc=netsoc,dc=tcd,dc=ie
 objectClass: tcdnetsoc-person
+objectClass: posixAccount
 uid: mu
 sn: Dolan
 cn: Stephen Dolan
-uidNumber: 2753
+homeDirectory: /home/stephen
+gidNumber: 2435
+uidNumber: 2435
 tcdnetsoc-ISS-username: sdolan
 tcdnetsoc-membership-year: 2007-2008
 tcdnetsoc-membership-year: 2008-2009
 
-dn: uidNumber=4324,ou=users,dc=netsoc,dc=tcd,dc=ie
-objectClass: tcdnetsoc-person
-uidNumber: 4324
-cn: A. Person
-sn: Person
+dn: cn=mu,ou=PersonalGroup,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: mu
+objectClass: tcdnetsoc-group
+gidNumber: 2435
+member: uid=mu,ou=User,dc=netsoc,dc=tcd,dc=ie
 
-dn: uid=boardsuser1,ou=users,dc=netsoc,dc=tcd,dc=ie
+dn: uid=boardsuser1,ou=User,dc=netsoc,dc=tcd,dc=ie
 objectClass: tcdnetsoc-person
 uid: boardsuser1
 cn: <unknown>
@@ -35,17 +28,9 @@ uidNumber: 3453
 tcdnetsoc-ISS-username: persona
 
 
-dn: uidNumber=3847,ou=users,dc=netsoc,dc=tcd,dc=ie
-objectClass: tcdnetsoc-person
-uidNumber: 3847
-tcdnetsoc-ISS-username: personb
-cn: <unknown>
-sn: <unknown>
-
-dn: cn=mygroup,ou=groups,dc=netsoc,dc=tcd,dc=ie
-objectClass: posixGroup
+dn: cn=mygroup,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: tcdnetsoc-group
 cn: mygroup
 gidNumber: 3432
-member: uid=mu,ou=users,dc=netsoc,dc=tcd,dc=ie
-member: uid=boardsuser1,ou=users,dc=netsoc,dc=tcd,dc=ie
+member: uid=mu,ou=User,dc=netsoc,dc=tcd,dc=ie
+member: uid=boardsuser1,ou=User,dc=netsoc,dc=tcd,dc=ie

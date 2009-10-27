@@ -1,18 +1,8 @@
-import time
-import posix
+# to be renamed...
+
+from ldapobject import *
+import pwd, grp, posix, os, stat, time
 import re
-import pwd
-import grp
-import getpass
-import ldap
-import ldapurl
-import random
-import time
-import collections
-
-valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
-root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
-
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -26,273 +16,173 @@ def current_session():
     return "%4d-%4d" % (year-1, year)
 
 
-def ldap_myself():
-    '''Returns the LDAP DN of the current user'''
-    return ldap_byuid(posix.getuid())
-
-
-def ldap_byuid(uid):
-    '''Returns the LDAP DN of the given user.
-
-    e.g. for user mu, returns uid=mu,ou=users,dc=netsoc,dc=tcd,dc=ie
-    Just because this function returns a DN does not mean that DN exists.
-    Can take a DN, a username, or a numeric UID as an argument.
-    '''
-    if isinstance(uid,str) and uid.endswith("dc=netsoc,dc=tcd,dc=ie"):
-        #already a DN
-        return uid
-    # This uses getpwuid to do a UID->name lookup, rather than LDAP
-    # This is because we mightn't have a LDAP connection at this point
-    # because to connect to LDAP you need to know your DN
+def read_small_file(file):
+    '''Read a small file (e.g. ~/.plan), carefully'''
     try:
-        uid = int(uid)
-        if uid < 0:
-            raise ValueError("Invalid UID")
-        try:
-            uid = pwd.getpwuid(uid)[0]
-        except KeyError:
-            pass
-        uid = str(uid)
-    except ValueError:
-        uid = str(uid).strip()
-        if not valid_username.match(uid):
-            raise ValueError("Invalid UID")
-
-    if uid == 0 or uid == "root":
-        return root_DN
-    else:
-        return "uid=%s,ou=users,dc=netsoc,dc=tcd,dc=ie" % uid
-
-def _ldap_get_num(dn):
-    l = ldap_connect()
-    return int(l.search_s(dn, ldap.SCOPE_BASE, attrlist=['serialNumber'])[0][1]['serialNumber'][0])
-
-def _ldap_set_num(dn, old, new):
-    l = ldap_connect()
-    l.modify_s(dn, [
-        (ldap.MOD_DELETE, 'serialNumber', str(old)),
-        (ldap.MOD_ADD, 'serialNumber', str(new))])
-
-def _ldap_alloc_inc(dn, inc):
-    for attempt in range(3):
-        currid = _ldap_get_num(dn)
-        try:
-            _ldap_set_num(dn, currid, currid+inc)
-        except ldap.NO_SUCH_ATTRIBUTE, e:
-            time.sleep(random.random() * 0.1)
-            continue
-        return currid
-    raise e
-
-
-def ldap_alloc_uid():
-    return _ldap_alloc_inc('cn=next-uid,dc=netsoc,dc=tcd,dc=ie', +1)
-def ldap_alloc_gid():
-   return _ldap_alloc_inc('cn=next-gid,dc=netsoc,dc=tcd,dc=ie', -1)
-
-def ldap_bygid(gid):
-    '''Returns the LDAP DN of the given group.
-
-    e.g. for group webteam, this returns cn=webteam,ou=groups,dc=netsoc,dc=tcd,dc=ie.
-    Can take a DN, a group name, or a numeric GID. Returns a (possibly non-existant) DN.'''
-    if isinstance(gid, str) and gid.endswith("dc=netsoc,dc=tcd,dc=ie"):
-        return gid
-    try:
-        gid = int(gid)
-        try:
-            gid = grp.getgrgid(gid)[0]
-        except KeyError:
-            pass
-        gid = str(gid)
-    except ValueError:
-        gid = str(gid).strip()
-        if not valid_username.match(gid):
-            raise ValueError("Invalid GID")
-    return "cn=%s,ou=groups,dc=netsoc,dc=tcd,dc=ie" % gid
-
-_ldap_conn = None
-
-def ldap_connect(uid = None, pwd = None):
-    '''Connects to LDAP. The connection is cached.
-
-    If uid is not None, it is taken as the user to connect as,
-    otherwise it chooses the current user. If password is None, it
-    will attempt to connect first without a password and if that fails
-    it will try to read a password from the terminal
-    '''
-    global _ldap_conn
-    if uid is None and pwd is None and _ldap_conn is not None:
-        return _ldap_conn
-    if uid is None:
-        dn = ldap_myself()
-    else:
-        dn = ldap_byuid(uid)
-    _ldap_conn = ldap.initialize(str(ldapurl.LDAPUrl(hostport="127.0.0.1")))
-    l = _ldap_conn
-    l.simple_bind_s(dn, pwd)
-    return l
-
-
-
-
-match_exact = lambda attr, value: "(%s=%s)" % (attr, value)
-match_substring = lambda attr, value: "(%s=*%s*)" % (attr, value)
-match_exact_or_substring = lambda attr, value: "(|%s%s)" % (match_exact(attr, value), match_substring(attr, value))
-match_user = lambda attr, value: "(%s=%s)" % (attr, ldap_byuid(value))
-match_group = lambda attr, value: "(%s=%s)" % (attr, ldap_bygid(value))
-attribute_match_filters = collections.defaultdict(lambda:match_exact_or_substring, {
-    'uid': match_exact,
-    'gid': match_exact,
-    'member': match_user,
-    'memberOf': match_group,
-})
-
-def ldap_filter_match(attr, value):
-    attr = str(attr).replace("_","-")
-    return attribute_match_filters[attr](attr, str(value))
-def ldap_filter_or(*filts):
-    return "(|" + "".join(filts) + ")"
-def ldap_filter_and(*filts):
-    return "(&" + "".join(filts) + ")"
-
-
-
-
-
-class LDAPObject(object):
-    base_dn = 'dc=netsoc,dc=tcd,dc=ie'
-    def __init__(self, dn, attrs_desired=None, **searchq):
-        self.dn = dn
-        self.attrs = None
-        self.attrs_desired = attrs_desired
-        self.searchq = None
-
-    def _ensure_attrs(self):
-        if self.attrs is None:
-            l = ldap_connect()
-            self.attrs = l.search_s(self.dn, ldap.SCOPE_BASE, attrlist=self.attrs_desired)[0][1]
-    def __iter__(self):
-        self._ensure_attrs()
-        if self.attrs_desired:
-            return iter(self.attrs_desired)
+        f = open(file, "r")
+        # make sure it's actually a file, not a pipe or somesuch
+        st = os.fstat(f.fileno())
+        if stat.S_ISREG(st[stat.ST_MODE]):
+            # fixed upper limit in case someone creates a huge ~/.plan
+            return f.read(1024)
         else:
-            return iter(self.attrs)
-    def __getattr__(self, name):
-        self._ensure_attrs()
-        if name in self.attrs and len(self.attrs[name]) == 1:
-            return self.attrs[name]
-        else:
-            raise KeyError("No or multiple values for %s" % name)
-    def get_all(self, name):
-        self._ensure_attrs()
-        return self.attrs.get(name) or []
-    def set(self, name, val):
-        self._ensure_attrs()
-        l = ldap_connect()
-        if l.modify_s(self.dn, [(ldap.MOD_REPLACE, name, val)])[0] != ldap.RES_MODIFY:
-            raise Exception("Couldn't modify value")
-    def __getitem__(self, name):
-        self._ensure_attrs()
-        return self.attrs.get(name)
+            return None
+    except:
+        # if it doesn't exist, or it's somewhere invalid, etc., then
+        # don't let the exception propagate
+        return None
 
-    @classmethod
-    def create(cls, dn, **kw):
-        l = ldap_connect()
-        modlist = []
-        for attr in kw:
-            val = kw[attr]
-            if type(val) != list: val=[val]
-            for v in val:
-                modlist.append((attr, str(v)))
-        print modlist
-        l.add_s(dn, modlist)
+
+class NDObject(LDAPObject):
+    base_dn='dc=netsoc,dc=tcd,dc=ie'
+
+class User(NDObject):
+    '''A member of Netsoc, past or present. Every member corresponds to a User, even the ones
+    without active shell accounts. If a shell account exists for a user (even if it is disabled)
+    user.has_account() will return True. For those users who have an account, their gidNumber
+    refers to their PersonalGroup (see below)'''
+    rdn_attr = 'uid'
+
+    valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
+    root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
+
+    def __init__(self, uid=None, obj_dn=None):
+        if uid == "root":
+            NDObject.__init__(self, obj_dn = root_DN)
+        else:
+            NDObject.__init__(self, uid, obj_dn = obj_dn)
+
+    @property
+    def project(self):
+        """Read a user's ~/.project file"""
+        return read_small_file(self.homeDirectory + "/.project")
+    @property
+    def plan(self):
+        """Read a user's ~/.plan file"""
+        return read_small_file(self.homeDirectory + "/.plan")
+
+    def has_account(self):
+        return 'posixAccount' in self.objectClass
+
+    def destroy(self):
+        if self.has_account() and os.access(self.homeDirectory, os.F_OK):
+            raise Exception("Cannot destroy user %s since home directory still exists" % self)
+        NDObject.destroy(self)
+
+    def get_personal_group(self):
+        if self.has_account():
+            return PersonalGroup(self.uid)
+        else:
+            return None
+
+    def info(self):
+        name = self.cn
+        isCurrentMember = current_session() in self.tcdnetsoc_membership_year
+        hasShellAcct = 'posixAccount' in self.objectClass
+        groups = list(self.memberOf)
+        membershipYears = self.tcdnetsoc_membership_year
+        username = self.uid
+        def has(priv):
+            if self in Group(priv):
+                return priv
+            else:
+                return "no " + priv
+        info = "User #%s: %s (%s), %s\n" % (self.uidNumber, username, name, "current member" if isCurrentMember else "not current member")
+        if hasShellAcct:
+            info += "has shell account, "+has('webspace')+", "+has('filestorage')+"\n"
+            info += "in groups: " + ", ".join(g.cn for g in self.memberOf) + "\n"
+        else:
+            info += "no shell account\n"
+        info += "Member of netsoc in " + ", ".join(self.tcdnetsoc_membership_year) + "\n"
+        return info
 
     def __repr__(self):
-        return '<' + type(self).__name__ + " " + self.dn + '>'
-
-    @classmethod
-    def cust_search(cls, **searchq):
-        print searchq
-        l = ldap_connect()
-        msgid = l.search(base=cls.base_dn, scope=ldap.SCOPE_SUBTREE, **searchq)
-        while 1:
-            (code, results) = l.result(msgid, 0)
-            for (dn,attrs) in results:
-                u = cls(dn)
-                u.attrs = attrs
-                yield u
-            if code == ldap.RES_SEARCH_RESULT:
-                break
-
-    @classmethod
-    def by_attrs(cls, **attrs):
-        return cls.cust_search(ldap_filter_and(*[
-            ldap_filter_match(k,v) for k,v in attrs.items()]))
-    @classmethod
-    def all_objs(cls, **attrs):
-        return cls.by_attrs()
+        return "<User %s (%s)>" % (self.uid, self.cn)
 
 
-class User(LDAPObject):
-    base_dn = 'ou=users,dc=netsoc,dc=tcd,dc=ie'
-    def __init__(self, uid, **kw):
-        LDAPObject.__init__(self, ldap_byuid(uid), **kw)
-    @classmethod
-    def everyone(cls):
-        return cls.all_objs()
-    @classmethod
-    def all_members(cls):
-        return cls.by_attrs(tcdnetsoc_membership_year=current_session())
-    @classmethod
-    def with_account(cls):
-        return cls.cust_search(filterstr='(&(objectClass=tcdnetsoc-person)(objectClass=posixAccount))')
-    @classmethod
-    def without_account(cls):
-        return cls.cust_search(filterstr='(!(objectClass=posixAccount))')
-    @classmethod
-    def create(cls, dn, **kw):
-        if 'uid' not in kw:
-            kw['uid'] = dn
-        if 'objectClass' not in kw:
-            kw['objectClass'] = []
-        if 'tcdnetsoc-person' not in kw['objectClass']:
-            kw['objectClass'].append('tcdnetsoc-person')
+    @staticmethod
+    def myself():
+        return User(pwd.getpwuid(posix.getuid())[0])
 
-        LDAPObject.create(ldap_byuid(dn), **kw)
+    def check(self):
+        assert 'tcdnetsoc-person' in self.objectClass
+        if self.has_account():
+            assert self.gidNumber == self.uidNumber
+            assert 'posixAccount' in self.objectClass
+            assert self.get_personal_group() is not None
 
-class Group(LDAPObject):
-    base_dn = 'ou=groups,dc=netsoc,dc=tcd,dc=ie'
-    def __init__(self, gid, **kw):
-        LDAPObject.__init__(self, ldap_bygid(gid), **kw)
-    def members(self):
-        l = ldap_connect()
-        memberlist = l.search_s(base=self.dn, scope=ldap.SCOPE_BASE, attrlist=['member'])[0][1]['member']
-        for u in memberlist:
-            yield User(u)
-    @classmethod
-    def posix_groups(cls):
-        return cls.by_attrs(objectClass='posixGroup')
-    @classmethod
-    def create(cls, dn, **kw):
-        if 'cn' not in kw:
-            kw['cn'] = dn
-        if 'objectClass' not in kw:
-            kw['objectClass'] = []
-        if 'tcdnetsoc-group' not in kw['objectClass']:
-            kw['objectClass'].append('tcdnetsoc-group')
-        LDAPObject.create(ldap_bygid(dn), **kw)
+class Group(NDObject):
+    '''A group of users. Groups may contain any number of users, including zero'''
+    rdn_attr = 'cn'
 
-    
-class Service(Group):
-    base_dn = 'ou=services,ou=groups,dc=netsoc,dc=tcd,dc=ie'
+    # Allow "user in group" and "for user in group" as shorthands for
+    # "user in group.member" and "for user in group.member"
+    def __contains__(self, obj):
+        return obj in self.member
+    def __iter__(self):
+        return iter(self.member)
 
-class SourceProject(Group):
-    base_dn = 'ou=sourceprojects,ou=groups,dc=netsoc,dc=tcd,dc=ie'
-    
-class UserGroup(Group):
-    base_dn = 'ou=usergroups,ou=groups,dc=netsoc,dc=tcd,dc=ie'
+class PersonalGroup(Group):
+    '''A PersonalGroup is a group with the same name as a user having only that user
+    as a member. Its GID is the UID of the user and its name is the username of the user'''
+    rdn_attr = 'cn'
+        
+    def get_user(self):
+        return User(self.cn)
+
+         
+    def check(self):
+        assert 'tcdnetsoc-group' in self.objectClass
+        user = self.get_user()
+        assert user.gidNumber == self.gidNumber
+        assert len(self.member) == 1
+        assert user in self
 
 
-class Host(LDAPObject):
-    base_dn = 'ou=hosts,dc=netsoc,dc=tcd,dc=ie'
-    
+
+class IDNumber(NDObject):
+    """Allocator for new ID numbers such as UID and GID.
+    The next ID is stored in the allocator object, and when a new one is requested
+    the field is atomically incremented and the old value is returned"""
+    rdn_attr = 'cn'
+    def _setnum(self, old, new):
+        # Minor hack: we use _raw_modattrs to ensure atomicity
+        # Without it, there's a race condition
+        self._raw_modattrs([
+            (ldap.MOD_DELETE, 'serialNumber', str(old)),
+            (ldap.MOD_ADD, 'serialNumber', str(new))])
+        
+    def alloc(self):
+        # try to atomically allocate a new number (UID, GID, etc)
+        # attempt it 3 times in case it fails because someone else
+        # is also allocating numbers
+        for attempt in range(3):
+            currid = self.serialNumber
+            try:
+                self._setnum(currid, currid+1)
+            except ldap.NO_SUCH_ATTRIBUTE, e:
+                time.sleep(random.random() * 0.1)
+                continue
+            return currid
+        raise e
+
+    def check(self):
+        assert 'tcdnetsoc-idnum' in self.objectClass
+
+
+UIDAllocator = IDNumber('next-uid')
+GIDAllocator = IDNumber('next-gid')
+
+
+Attribute('objectClass', [str])
+Attribute('serialNumber', int)
+Attribute('tcdnetsoc_membership_year', [str])
+Attribute('uid', str, match_exact)
+Attribute('uidNumber', int)
+Attribute('gidNumber', int)
+Attribute('homeDirectory', str)
+Attribute('cn', str)
+Attribute('member', [User])
+Attribute('memberOf', [Group], backlink='member')
+
+

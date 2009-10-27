@@ -1,3 +1,4 @@
+
 dn: dc=netsoc,dc=tcd,dc=ie
 objectClass: dcObject
 objectClass: organization
@@ -8,24 +9,24 @@ dn: cn=root,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalRole
 cn: root
 
-dn: ou=users,dc=netsoc,dc=tcd,dc=ie
+dn: ou=User,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
-ou: users
+ou: User
 description: Netsoc users, both members and non-members
 
-dn: ou=groups,dc=netsoc,dc=tcd,dc=ie
+dn: ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
-ou: groups
+ou: Group
 
-dn: ou=usergroups,ou=groups,dc=netsoc,dc=tcd,dc=ie
+dn: ou=PersonalGroup,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
-ou: usergroups
+ou: PersonalGroup
 
-dn: ou=sourceprojects,ou=groups,dc=netsoc,dc=tcd,dc=ie
+dn: ou=sourceprojects,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
 ou: sourceprojects
 
-dn: ou=services,ou=groups,dc=netsoc,dc=tcd,dc=ie
+dn: ou=services,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
 ou: services
 
@@ -33,5 +34,29 @@ dn: ou=hosts,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
 ou: hosts
 
+dn: ou=IDNumber,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: IDNumber
 
 
+dn: cn=next-uid,ou=IDNumber,dc=netsoc,dc=tcd,dc=ie
+cn: next-uid
+serialNumber: 1000
+objectClass: tcdnetsoc-idnum
+
+dn: cn=next-gid,ou=IDNumber,dc=netsoc,dc=tcd,dc=ie
+cn: next-gid
+serialNumber: 20000
+objectClass: tcdnetsoc-idnum
+
+
+
+dn: cn=webspace,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: webspace
+objectClass: tcdnetsoc-group
+gidNumber: 60000
+
+dn: cn=filestorage,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: filestorage
+objectClass: tcdnetsoc-group
+gidNumber: 60001
