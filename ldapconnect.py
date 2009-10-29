@@ -2,13 +2,15 @@
 # Handles directly talking to the LDAP server
 # including binding, authentication and so on
 
-import ldap, ldapurl
+import ldap, ldapurl, ldap.sasl
 from logging import *
 
 
 _ldap_conn = None
 
-def ldap_connect(uid = None, pwd = None):
+
+
+def ldap_connect(dn = None, pwd = None, host = None):
 	#    '''Connects to LDAP. The connection is cached.
 	#
 	#    If uid is not None, it is taken as the user to connect as,
@@ -22,15 +24,20 @@ def ldap_connect(uid = None, pwd = None):
 	#    if uid is None:
 	#        dn = ldap_myself()
 	#    else:
-	#        dn = ldap_byuid(uid)
-	#    _ldap_conn = ldap.initialize(str(ldapurl.LDAPUrl(hostport="127.0.0.1")))
+	#        dn = ldap_byuid(uid)	
+
 	#    l = _ldap_conn
 	#    l.simple_bind_s(dn, pwd)
 	#    return l
         global _ldap_conn
         if _ldap_conn is None:
-            _ldap_conn = ldap.initialize(str(ldapurl.LDAPUrl(hostport="127.0.0.1")))
-            _ldap_conn.simple_bind_s('cn=root,dc=netsoc,dc=tcd,dc=ie', 'foo')
+                if dn is None:
+                        _ldap_conn = ldap.initialize("ldapi:///")
+                        _ldap_conn.sasl_interactive_bind_s("", ldap.sasl.external())
+                else:
+                        if host is None: host = "127.0.0.1"
+                        _ldap_conn = ldap.initialize(str(ldapurl.LDAPUrl(host)))
+                        _ldap_conn.simple_bind_s(dn, pwd)
         return _ldap_conn
     
 

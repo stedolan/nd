@@ -64,6 +64,7 @@ class User(NDObject):
     def has_account(self):
         return 'posixAccount' in self.objectClass
 
+
     def destroy(self):
         if self.has_account() and os.access(self.homeDirectory, os.F_OK):
             raise Exception("Cannot destroy user %s since home directory still exists" % self)
@@ -177,6 +178,8 @@ GIDAllocator = IDNumber('next-gid')
 Attribute('objectClass', [str])
 Attribute('serialNumber', int)
 Attribute('tcdnetsoc_membership_year', [str])
+Attribute('tcdnetsoc_ISS_username', str)
+Attribute('sn', str)
 Attribute('uid', str, match_exact)
 Attribute('uidNumber', int)
 Attribute('gidNumber', int)

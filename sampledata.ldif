@@ -7,8 +7,8 @@ uid: mu
 sn: Dolan
 cn: Stephen Dolan
 homeDirectory: /home/stephen
-gidNumber: 2435
-uidNumber: 2435
+gidNumber: 1000
+uidNumber: 1000
 tcdnetsoc-ISS-username: sdolan
 tcdnetsoc-membership-year: 2007-2008
 tcdnetsoc-membership-year: 2008-2009
@@ -16,7 +16,7 @@ tcdnetsoc-membership-year: 2008-2009
 dn: cn=mu,ou=PersonalGroup,ou=Group,dc=netsoc,dc=tcd,dc=ie
 cn: mu
 objectClass: tcdnetsoc-group
-gidNumber: 2435
+gidNumber: 1000
 member: uid=mu,ou=User,dc=netsoc,dc=tcd,dc=ie
 
 dn: uid=boardsuser1,ou=User,dc=netsoc,dc=tcd,dc=ie

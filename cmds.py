@@ -93,7 +93,7 @@ def query(objspec, type, args):
         if cmd == 'get':
             obj = type(objspec)
             for attr, value in obj.get_all_attribute_pairs():
-                print attr + ": " + value
+                print attr + ": " + str(value)
         elif cmd == 'set':
             obj = type(objspec)
             obj.set_attribute(args[1], args[2])
