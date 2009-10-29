@@ -76,6 +76,9 @@ class User(NDObject):
         else:
             return None
 
+    def passwd(self, old, new):
+        self._raw_passwd(old, new)
+
     def info(self):
         name = self.cn
         isCurrentMember = current_session() in self.tcdnetsoc_membership_year

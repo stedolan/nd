@@ -67,3 +67,7 @@ def modrdn(dn, newrdn):
     l = ldap_connect()
     l.rename_s(dn, newrdn)
 
+def passwd(dn, oldpw, newpw):
+    ldebug("Changing password for %s" % dn)
+    l = ldap_connect()
+    l.passwd_s(dn, oldpw, newpw)

@@ -205,6 +205,8 @@ class LDAPObject(object):
         r = lc.modrdn(self.get_dn(), tuple_to_dn(rdn_part))
         self._dn = tuple_to_dn(rdn_part + dn_to_tuple(self._dn)[1:])
         return r
+    def _raw_passwd(self, old, new):
+        lc.passwd(self.get_dn(), old, new)
 
     def get_attribute(self, name):
         '''Read an attribute from this object in the LDAP tree and convert the value
