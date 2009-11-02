@@ -81,6 +81,38 @@ class LDAPClass(type):
         cls.cls_dn_tuple = dn
         cls.cls_dn_str = tuple_to_dn(dn)
 
+    @staticmethod
+    def classmap_as_graphviz():
+        cmap = LDAPClass._classmap
+        parent = {}
+        name = {}
+        maxid = 1
+        id = {}
+        for dn in cmap:
+            if dn == (): continue
+            for i in range(1,len(dn)):
+                if dn[i:] in cmap:
+                    parent[dn] = dn[i:]
+                    name[dn] = tuple_to_dn(dn[0:i])
+                    id[dn] = maxid
+                    maxid += 1
+                    break
+            else:
+                name[dn] = tuple_to_dn(dn)
+                id[dn] = maxid
+                maxid += 1
+        retdata = []
+        p = retdata.append
+        p("digraph {")
+        for dn in cmap:
+            if dn != ():
+                p('n%d [label="%s",shape=box]' % (id[dn], name[dn]))
+        for dn in cmap:
+            if dn in parent:
+                p("n%d -> n%d" % (id[parent[dn]], id[dn]))
+        p("}")
+        return "\n".join(retdata)
+
        
     @staticmethod
     def get_class_by_dn(dn_str):
