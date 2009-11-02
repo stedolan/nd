@@ -218,7 +218,7 @@ class LDAPObject(object):
             n = attr.get_ldap_name()
             vals = self._raw_readattrs([n])[n]
             if len(vals) == 0:
-                raise AttributeError("No such attribute: %s" % name)
+                return None
             elif len(vals) > 1:
                 raise AttributeError("Attribute %s seems to be multi-valued, but isn't declared as such" % name)
             else:
@@ -261,12 +261,16 @@ class LDAPObject(object):
     #  del self.attr
     def __getitem__(self, name):
         if type(name) == int: raise TypeError("Not iterable")
-        return self.get_attribute(name)
+        v = self.get_attribute(name)
+        if v is not None:
+            return v
+        else:
+            raise AttributeError("No such attribute: %s" % name)
     def __getattr__(self, name):
         if name.startswith("_"):
             # names that start with an underscore are not routed through LDAP
             raise AttributeError("No such attribute: " + name)
-        return self.get_attribute(name)
+        return self[name]
     def __setattr__(self, name, val):
         if isinstance(val, ValueSet):
             # This is to work around some weirdness of Python
