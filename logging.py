@@ -9,7 +9,7 @@ fmts = {
     LOG_ERR: chr(27) + "[31mError: %s" + chr(27) + "[0m\n",
     LOG_WARN: chr(27) + "[33mWarning: %s" + chr(27) + "[0m\n",
     LOG_INFO: "%s\n",
-    LOG_DEBUG: ""  #"%s\n",
+    LOG_DEBUG: "" #"%s\n",
 }
 
 

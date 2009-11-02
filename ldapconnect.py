@@ -51,6 +51,7 @@ def search(base, scope, filter, attrlist=None):
 
 def add(dn, modlist):
     l = ldap_connect()
+    ldebug("Adding %s" % modlist)
     l.add_s(dn, modlist)
 
 def delete(dn):
@@ -58,7 +59,7 @@ def delete(dn):
     l.delete_s(dn)
 
 def modify(dn, modlist):
-    ldebug("Modifying %s" % dn)
+    ldebug("Modifying %s: %s" % (dn,modlist))
     l = ldap_connect()
     l.modify_s(dn, modlist)
 

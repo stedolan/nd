@@ -2,12 +2,9 @@
 
 dn: uid=mu,ou=User,dc=netsoc,dc=tcd,dc=ie
 objectClass: tcdnetsoc-person
-objectClass: posixAccount
 uid: mu
 sn: Dolan
 cn: Stephen Dolan
-homeDirectory: /home/stephen
-gidNumber: 1000
 uidNumber: 1000
 tcdnetsoc-ISS-username: sdolan
 tcdnetsoc-membership-year: 2007-2008

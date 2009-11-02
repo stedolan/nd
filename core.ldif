@@ -22,6 +22,10 @@ dn: ou=PersonalGroup,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
 ou: PersonalGroup
 
+dn: ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
+objectClass: organizationalUnit
+ou: Privilege
+
 dn: ou=sourceprojects,ou=Group,dc=netsoc,dc=tcd,dc=ie
 objectClass: organizationalUnit
 ou: sourceprojects
@@ -51,12 +55,28 @@ objectClass: tcdnetsoc-idnum
 
 
 
-dn: cn=webspace,ou=Group,dc=netsoc,dc=tcd,dc=ie
+
+dn: cn=webspace,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
 cn: webspace
 objectClass: tcdnetsoc-group
 gidNumber: 60000
 
-dn: cn=filestorage,ou=Group,dc=netsoc,dc=tcd,dc=ie
+dn: cn=filestorage,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
 cn: filestorage
 objectClass: tcdnetsoc-group
 gidNumber: 60001
+
+dn: cn=shell,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: shell
+objectClass: tcdnetsoc-group
+gidNumber: 60002
+
+dn: cn=autorenew,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: autorenew
+objectClass: tcdnetsoc-group
+gidNumber: 60003
+
+dn: cn=alwaysrenewable,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: alwaysrenewable
+objectClass: tcdnetsoc-group
+gidNumber: 60004

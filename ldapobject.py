@@ -102,21 +102,36 @@ class LDAPClass(type):
 
     # Create is a class method, yet destroy is an instance method
     # This asymmetry makes sense: User.create('someuser') yet someuser.destroy()
-    def create(cls, attrs):
+    def create(cls, **attrs):
         '''Create an object of this class'''
         if cls.rdn_attr not in attrs:
             raise TypeError("All %s objects must have a %s field" % (cls, cls.rdn_attr))
         modlist = []
+        backlinks = []
         for key in attrs:
             val = attrs[key]
-            if type(val) != list: val = [val]
-            for v in val:
-                modlist.append((attr, str(v)))
-        dn = tuple_to_dn((cls.rdn_attr, attrs[cls.rdn_attr]) + cls.cls_dn_tuple)
+            attribute = Attribute.get_attribute(key)
+            if attribute.is_multival():
+                if attribute.is_backlink_attr():
+                    backlinks.append(key)
+                else:
+                    for v in val:
+                        modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(v)))
+            else:
+                modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(val)))
+            
+        dn = tuple_to_dn(((cls.rdn_attr, attrs[cls.rdn_attr]),) + cls.cls_dn_tuple)
         linfo("Creating %s of type %s" %(dn, cls))
         lc.add(dn, modlist)
-        assert(get_class_by_dn(dn) is cls)
-        return cls(obj_dn = dn)
+        assert(LDAPClass.get_class_by_dn(dn) is cls)
+
+        ret_obj = cls(obj_dn = dn)
+        
+        for key in backlinks:
+            for obj in attrs[key]:
+                getattr(ret_obj, key).add(obj)
+        
+        return ret_obj
 
     
     def search(cls, filter):
@@ -229,6 +244,10 @@ class LDAPObject(object):
         # include all the backlink attrs as well, by default they don't show up under "*"
         d = self._raw_readattrs(["*"] + Attribute.list_backlink_attrs())
         return [(name, Attribute.get_attribute(name).ldap_to_py(val)) for name in d for val in d[name]]
+
+    def dump(self):
+        for k,v in self.get_all_attribute_pairs():
+            print "%s: %s" % (k,v)
 
     def get_all_attributes(self):
         '''Return a list of all the attributes this object has (not the values)'''
@@ -401,6 +420,8 @@ class Attribute(object):
         return self.type
     def is_multival(self):
         return self.multival
+    def is_backlink_attr(self):
+        return self.get_ldap_name() in ValueSet._backlink_attrs
     
     def get_filter(self, val):
         '''Return an LDAP search filter to match this attribute against a given value'''
@@ -427,6 +448,7 @@ class Attribute(object):
             if not isinstance(o, self.type):
                 raise TypeError("%s is not a %s" % (o, self.type))
             return o
+
 
 
     @staticmethod
@@ -480,7 +502,7 @@ class ValueSet(object):
     def __contains__(self, val):
         return val in self._get_attr_list()
 
-    
+
     def add(self, val):
         '''Add a value to the set. This fails with an exception if the value is
         already present'''

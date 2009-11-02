@@ -57,7 +57,7 @@ objectclass ( no:1
  MUST (
   uidNumber )
  MAY (
-  uid $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year ) )
+  uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year ) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'

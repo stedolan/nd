@@ -46,6 +46,7 @@ class User(NDObject):
     valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
     root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
 
+
     def __init__(self, uid=None, obj_dn=None):
         if uid == "root":
             NDObject.__init__(self, obj_dn = root_DN)
@@ -60,6 +61,13 @@ class User(NDObject):
     def plan(self):
         """Read a user's ~/.plan file"""
         return read_small_file(self.homeDirectory + "/.plan")
+
+
+    def get_full_name(self):
+        gecos = self.get_attribute("gecos")
+        if gecos is None: return None
+        if "," in gecos: return gecos.split(",")[0]
+        return gecos
 
     def has_account(self):
         return 'posixAccount' in self.objectClass
@@ -79,6 +87,13 @@ class User(NDObject):
     def passwd(self, old, new):
         self._raw_passwd(old, new)
 
+    def has_priv(self, name):
+        return self in Privilege(name)
+    
+    @staticmethod
+    def with_priv(self, name):
+        return Privilege(name).member
+
     def info(self):
         name = self.cn
         isCurrentMember = current_session() in self.tcdnetsoc_membership_year
@@ -87,7 +102,7 @@ class User(NDObject):
         membershipYears = self.tcdnetsoc_membership_year
         username = self.uid
         def has(priv):
-            if self in Group(priv):
+            if self.has_priv(priv):
                 return priv
             else:
                 return "no " + priv
@@ -108,12 +123,116 @@ class User(NDObject):
     def myself():
         return User(pwd.getpwuid(posix.getuid())[0])
 
+
+
+    disabled_shells = ['renew','bold','expired','dead']
+    disabled_shells_base = "/usr/local/spoon/special_shells/"
+    first_login_shell = "/usr/local/spoon/special_shells/accept_AUP"
+    homedir_pattern = "/home/%s"
+    default_login_shell = "/bin/bash"
+    states = ['active','noshell','renew','bold','expired','dead']
+
+    def get_state(self):
+        if self.has_account():
+            sh = self.loginShell
+            disabled_shell = sh.startswith(User.disabled_shells_base) and sh != User.first_login_shell
+            if self.has_priv("shell"):
+                if disabled_shell:
+                    lerr(repr(self) + " is active, but has shell " + sh)
+                return "active"
+            else:
+                if not disabled_shell:
+                    lerr(repr(self) + " is disabled, but has shell " + sh)
+                    return "bold" # abitrary default, this shouldn't happen
+                else:
+                    return sh[len(User.disabled_shells_base):]
+        else:
+            return "noshell"
+
+    def set_state(self, newst):
+        assert newst in User.states
+        st = self.get_state()
+        if st == newst:
+            return
+        if newst == "noshell":
+            self.objectClass -= "posixAccount"
+            if self.has_priv("shell"):
+                Privilege("shell").member -= self
+            return
+
+        if st == "noshell":
+            assert not self.has_priv("shell")
+            if not PersonalGroup(self.uid).exists():
+                PersonalGroup.create(cn=self.uid,
+                                     objectClass=["tcdnetsoc-group"],
+                                     gidNumber=self.uidNumber,
+                                     member=[self])
+            self.gidNumber = self.uidNumber
+            self.homeDirectory = User.homedir_pattern % self.uid
+            self.objectClass += "posixAccount"
+            Privilege("shell").member += self
+
+        sh = self.get_attribute("loginShell")
+        if newst == "active":
+            if sh is None:
+                newsh = User.first_login_shell
+            else:
+                newsh = User.default_login_shell
+        else:
+            newsh = User.disabled_shells_base + newst
+
+        self.loginShell = newsh
+
+    def get_correct_state(self):
+        # Does this person automatically get a shell?
+        autorenew = self.has_priv("autorenew")
+
+        # Can this person sign up even if they've left college?
+        alwaysrenewable = self.has_priv("alwaysrenewable")
+
+        # Is this person a current TCD student/staff member?
+        current_tcd = True # FIXME
+
+        # Has this person paid the membership fee this year?
+        current_member = current_session() in self.tcdnetsoc_membership_year
+
+        entitled_to_renew = autorenew or alwaysrenewable or current_tcd
+        entitled_to_shell = (current_member and current_tcd) or autorenew
+        
+        st = self.get_state()
+        if st in ["active", "renew", "expired"]:
+            if not entitled_to_shell:
+                if entitled_to_renew:
+                    s = "renew"
+                else:
+                    s = "expired"
+            else:
+                s = "active"
+        elif st == "noshell":
+            # FIXME: what does this really mean?
+            s = "noshell"
+        elif st == "bold":
+            # FIXME: should "bold" become "active" after a timeout?
+            s = "bold"
+        elif st == "dead":
+            # FIXME: should "dead" become "noshell" after a timeout?
+            s = "dead"
+        return s
+
     def check(self):
         assert 'tcdnetsoc-person' in self.objectClass
         if self.has_account():
             assert self.gidNumber == self.uidNumber
             assert 'posixAccount' in self.objectClass
             assert self.get_personal_group() is not None
+
+            if self.has_priv("shell"):
+                assert not self.loginShell.startswith(User.disabled_shells_base)
+            elif self.get_attribute("loginShell") is not None:
+                sh = self.loginShell
+                assert sh.startswith(User.disabled_shells_base)
+                assert sh[len(User.disabled_shells_base):] in User.disabled_shells
+
 
 class Group(NDObject):
     '''A group of users. Groups may contain any number of users, including zero'''
@@ -142,6 +261,10 @@ class PersonalGroup(Group):
         assert len(self.member) == 1
         assert user in self
 
+class Privilege(Group):
+    '''Groups controlling access to specific services, for instance webspace or
+    filestorage'''
+    rdn_attr = 'cn'
 
 
 class IDNumber(NDObject):
@@ -182,6 +305,7 @@ Attribute('objectClass', [str])
 Attribute('serialNumber', int)
 Attribute('tcdnetsoc_membership_year', [str])
 Attribute('tcdnetsoc_ISS_username', str)
+Attribute('loginShell', str)
 Attribute('sn', str)
 Attribute('uid', str, match_exact)
 Attribute('uidNumber', int)
