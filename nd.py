@@ -132,17 +132,21 @@ class User(NDObject):
     default_login_shell = "/bin/bash"
     states = ['active','noshell','renew','bold','expired','dead']
 
+    @staticmethod
+    def _has_disabled_shell(self):
+        sh = self.get_attribute("loginShell")
+        return sh is not None and sh != User.first_login_shell and sh.startswith(User.disabled_shells_base)
+
     def get_state(self):
         if self.has_account():
-            sh = self.loginShell
-            disabled_shell = sh.startswith(User.disabled_shells_base) and sh != User.first_login_shell
+            disabled_shell = self._has_disabled_shell()
             if self.has_priv("shell"):
                 if disabled_shell:
-                    lerr(repr(self) + " is active, but has shell " + sh)
+                    lerr(repr(self) + " is active, but has shell " + self.loginShell)
                 return "active"
             else:
                 if not disabled_shell:
-                    lerr(repr(self) + " is disabled, but has shell " + sh)
+                    lerr(repr(self) + " is disabled, but has shell " + self.loginShell)
                     return "bold" # abitrary default, this shouldn't happen
                 else:
                     return sh[len(User.disabled_shells_base):]
@@ -156,11 +160,17 @@ class User(NDObject):
             return
         if newst == "noshell":
             self.objectClass -= "posixAccount"
+            # FIXME: remove other privileges as well??
             if self.has_priv("shell"):
                 Privilege("shell").member -= self
             return
 
         if st == "noshell":
+            if self.has_disabled_shell():
+                prevstate = self.loginShell[len(User.disabled_shells_base):]
+                if newst != prevstate:
+                    raise Exception("Trying to change state of %s from noshell to %s, although account was %s" % (self, newst, prevstate))
+                
             assert not self.has_priv("shell")
             if not PersonalGroup(self.uid).exists():
                 PersonalGroup.create(cn=self.uid,
@@ -197,41 +207,40 @@ class User(NDObject):
         current_member = current_session() in self.tcdnetsoc_membership_year
 
         entitled_to_renew = autorenew or alwaysrenewable or current_tcd
-        entitled_to_shell = (current_member and current_tcd) or autorenew
+        entitled_to_shell = autorenew or (current_member and current_tcd)
         
         st = self.get_state()
         if st in ["active", "renew", "expired"]:
-            if not entitled_to_shell:
+            if entitled_to_shell:
+                s = "active"
+            else:
                 if entitled_to_renew:
                     s = "renew"
                 else:
                     s = "expired"
-            else:
-                s = "active"
         elif st == "noshell":
-            # FIXME: what does this really mean?
-            s = "noshell"
+            sh = self.get_attribute("loginShell")
+            if not self.has_disabled_shell() and autorenew:
+                s = "active"
+            else:
+                s = "noshell"
         elif st == "bold":
-            # FIXME: should "bold" become "active" after a timeout?
             s = "bold"
         elif st == "dead":
-            # FIXME: should "dead" become "noshell" after a timeout?
             s = "dead"
         return s
 
     def check(self):
         assert 'tcdnetsoc-person' in self.objectClass
-        if self.has_account():
+        st = self.get_state()
+        if st == "noshell":
+            assert not self.has_account()
+            assert not self.has_priv("shell")
+        else:
+            assert self.has_account()
             assert self.gidNumber == self.uidNumber
             assert 'posixAccount' in self.objectClass
             assert self.get_personal_group() is not None
-
-            if self.has_priv("shell"):
-                assert not self.loginShell.startswith(User.disabled_shells_base)
-            elif self.get_attribute("loginShell") is not None:
-                sh = self.loginShell
-                assert sh.startswith(User.disabled_shells_base)
-                assert sh[len(User.disabled_shells_base):] in User.disabled_shells
 
 
 class Group(NDObject):
