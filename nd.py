@@ -132,7 +132,6 @@ class User(NDObject):
     default_login_shell = "/bin/bash"
     states = ['active','noshell','renew','bold','expired','dead']
 
-    @staticmethod
     def _has_disabled_shell(self):
         sh = self.get_attribute("loginShell")
         return sh is not None and sh != User.first_login_shell and sh.startswith(User.disabled_shells_base)
@@ -166,7 +165,7 @@ class User(NDObject):
             return
 
         if st == "noshell":
-            if self.has_disabled_shell():
+            if self._has_disabled_shell():
                 prevstate = self.loginShell[len(User.disabled_shells_base):]
                 if newst != prevstate:
                     raise Exception("Trying to change state of %s from noshell to %s, although account was %s" % (self, newst, prevstate))
@@ -220,7 +219,7 @@ class User(NDObject):
                     s = "expired"
         elif st == "noshell":
             sh = self.get_attribute("loginShell")
-            if not self.has_disabled_shell() and autorenew:
+            if not self._has_disabled_shell() and autorenew:
                 s = "active"
             else:
                 s = "noshell"
@@ -266,6 +265,7 @@ class PersonalGroup(Group):
     def check(self):
         assert 'tcdnetsoc-group' in self.objectClass
         user = self.get_user()
+        assert user.exists()
         assert user.gidNumber == self.gidNumber
         assert len(self.member) == 1
         assert user in self

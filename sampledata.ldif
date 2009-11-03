@@ -6,6 +6,7 @@ uid: mu
 sn: Dolan
 cn: Stephen Dolan
 uidNumber: 1000
+gidNumber: 1000
 tcdnetsoc-ISS-username: sdolan
 tcdnetsoc-membership-year: 2007-2008
 tcdnetsoc-membership-year: 2008-2009
