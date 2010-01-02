@@ -35,6 +35,8 @@ def read_small_file(file):
 
 class NDObject(LDAPObject):
     base_dn='dc=netsoc,dc=tcd,dc=ie'
+    def can_bind(self):
+        return self.get_attribute("userPassword") is not None
 
 class User(NDObject):
     '''A member of Netsoc, past or present. Every member corresponds to a User, even the ones
@@ -98,6 +100,7 @@ class User(NDObject):
         name = self.cn
         isCurrentMember = current_session() in self.tcdnetsoc_membership_year
         hasShellAcct = 'posixAccount' in self.objectClass
+        canBind = self.can_bind()
         groups = list(self.memberOf)
         membershipYears = self.tcdnetsoc_membership_year
         username = self.uid
@@ -107,11 +110,14 @@ class User(NDObject):
             else:
                 return "no " + priv
         info = "User #%s: %s (%s), %s\n" % (self.uidNumber, username, name, "current member" if isCurrentMember else "not current member")
-        if hasShellAcct:
-            info += "has shell account, "+has('webspace')+", "+has('filestorage')+"\n"
-            info += "in groups: " + ", ".join(g.cn for g in self.memberOf) + "\n"
+        if canBind:
+            if hasShellAcct:
+                info += "has shell account, "+has('webspace')+", "+has('filestorage')+"\n"
+                info += "in groups: " + ", ".join(g.cn for g in self.memberOf) + "\n"
+            else:
+                info += "no shell account\n"
         else:
-            info += "no shell account\n"
+            info += "Disabled account\n"
         info += "Member of netsoc in " + ", ".join(self.tcdnetsoc_membership_year) + "\n"
         return info
 
@@ -130,7 +136,7 @@ class User(NDObject):
     first_login_shell = "/usr/local/spoon/special_shells/accept_AUP"
     homedir_pattern = "/home/%s"
     default_login_shell = "/bin/bash"
-    states = ['active','noshell','renew','bold','expired','dead']
+    states = ['active','disabled','renew','bold','expired','dead']
 
     def _has_disabled_shell(self):
         sh = self.get_attribute("loginShell")
@@ -150,25 +156,26 @@ class User(NDObject):
                 else:
                     return sh[len(User.disabled_shells_base):]
         else:
-            return "noshell"
+            return "disabled"
 
     def set_state(self, newst):
         assert newst in User.states
         st = self.get_state()
         if st == newst:
             return
-        if newst == "noshell":
+        if newst == "disabled":
             self.objectClass -= "posixAccount"
             # FIXME: remove other privileges as well??
             if self.has_priv("shell"):
                 Privilege("shell").member -= self
+            del self.userPassword
             return
 
-        if st == "noshell":
+        if st == "disabled":
             if self._has_disabled_shell():
                 prevstate = self.loginShell[len(User.disabled_shells_base):]
                 if newst != prevstate:
-                    raise Exception("Trying to change state of %s from noshell to %s, although account was %s" % (self, newst, prevstate))
+                    raise Exception("Trying to change state of %s from disabled to %s, although account was %s" % (self, newst, prevstate))
                 
             assert not self.has_priv("shell")
             if not PersonalGroup(self.uid).exists():
@@ -194,7 +201,7 @@ class User(NDObject):
 
     def get_correct_state(self):
         # Does this person automatically get a shell?
-        autorenew = self.has_priv("autorenew")
+        noexpire = self.has_priv("noexpire")
 
         # Can this person sign up even if they've left college?
         alwaysrenewable = self.has_priv("alwaysrenewable")
@@ -205,8 +212,8 @@ class User(NDObject):
         # Has this person paid the membership fee this year?
         current_member = current_session() in self.tcdnetsoc_membership_year
 
-        entitled_to_renew = autorenew or alwaysrenewable or current_tcd
-        entitled_to_shell = autorenew or (current_member and current_tcd)
+        entitled_to_renew = noexpire or alwaysrenewable or current_tcd
+        entitled_to_shell = noexpire or (current_member and current_tcd)
         
         st = self.get_state()
         if st in ["active", "renew", "expired"]:
@@ -217,12 +224,11 @@ class User(NDObject):
                     s = "renew"
                 else:
                     s = "expired"
-        elif st == "noshell":
-            sh = self.get_attribute("loginShell")
-            if not self._has_disabled_shell() and autorenew:
+        elif st == "disabled":
+            if not self._has_disabled_shell() and noexpire:
                 s = "active"
             else:
-                s = "noshell"
+                s = "disabled"
         elif st == "bold":
             s = "bold"
         elif st == "dead":
@@ -232,9 +238,10 @@ class User(NDObject):
     def check(self):
         assert 'tcdnetsoc-person' in self.objectClass
         st = self.get_state()
-        if st == "noshell":
+        if st == "disabled":
             assert not self.has_account()
             assert not self.has_priv("shell")
+            assert self.get_attribute('userPassword') is None
         else:
             assert self.has_account()
             assert self.gidNumber == self.uidNumber

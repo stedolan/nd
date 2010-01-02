@@ -304,6 +304,9 @@ class LDAPObject(object):
         attr = Attribute.get_attribute(name)
         self._raw_modattrs([(ldap.MOD_DELETE, attr.get_ldap_name(), None)])
 
+    def change(self, **attrs):
+        pass
+
 
     # Allow Pythonic constructions for LDAP attributes:
     #  print self.attr
