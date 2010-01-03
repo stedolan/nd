@@ -59,7 +59,7 @@ objectclass ( no:1
   uidNumber $ cn )
  MAY (
   uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
-  tcdnetsoc-admin-comment $ mail ) )
+  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell ) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'
