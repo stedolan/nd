@@ -61,11 +61,6 @@ cn: webspace
 objectClass: tcdnetsoc-group
 gidNumber: 60000
 
-dn: cn=filestorage,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
-cn: filestorage
-objectClass: tcdnetsoc-group
-gidNumber: 60001
-
 dn: cn=shell,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
 cn: shell
 objectClass: tcdnetsoc-group

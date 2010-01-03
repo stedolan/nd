@@ -112,7 +112,7 @@ class User(NDObject):
         info = "User #%s: %s (%s), %s\n" % (self.uidNumber, username, name, "current member" if isCurrentMember else "not current member")
         if canBind:
             if hasShellAcct:
-                info += "has shell account, "+has('webspace')+", "+has('filestorage')+"\n"
+                info += "has shell account, "+has('webspace')+"\n"
                 info += "in groups: " + ", ".join(g.cn for g in self.memberOf) + "\n"
             else:
                 info += "no shell account\n"
