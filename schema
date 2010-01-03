@@ -100,5 +100,5 @@ objectclass ( no:5
  DESC 'Service accessible by Netsoc users with the right privileges'
  STRUCTURAL
  MUST ( cn ) 
- MAY ( tcdnetsoc-granted-by-privilege ) )
+ MAY ( tcdnetsoc-granted-by-privilege $ userPassword ) )
  

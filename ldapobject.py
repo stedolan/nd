@@ -460,7 +460,7 @@ class Attribute(object):
     
     def get_filter(self, val):
         '''Return an LDAP search filter to match this attribute against a given value'''
-        return SearchFilter.from_raw_filter(self.matchrule(self.name, self.py_to_ldap(val)))
+        return SearchFilter.from_raw_filter(self.matchrule(self.get_ldap_name(), self.py_to_ldap(val)))
     def py_to_ldap(self, val):
         '''Convert from Python format to LDAP (string) format'''
         if self.type in (int, str):

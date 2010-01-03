@@ -89,6 +89,9 @@ class User(NDObject):
     def passwd(self, old, new):
         self._raw_passwd(old, new)
 
+    def has_access(self, service):
+        return service.has_access(self)
+
     def has_priv(self, name):
         return self in Privilege(name)
     
@@ -289,6 +292,10 @@ class Service(NDObject):
     rdn_attr = 'cn'
     def get_password(self):
         return self.get_attribute("userPassword")
+
+    def has_access(self, user):
+        return len(list(Privilege.search(SearchFilter.all(tcdnetsoc_service_granted=self,
+                                                          member=user)))) != 0
     
 
 class IDNumber(NDObject):
