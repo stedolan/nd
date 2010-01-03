@@ -54,10 +54,9 @@ attributetype ( na:4
 objectclass ( no:1
  NAME 'tcdnetsoc-person'
  DESC 'Member or user of Trinity College Dublin Internet Society'
- SUP inetOrgPerson
  STRUCTURAL
  MUST (
-  uidNumber )
+  uidNumber $ cn )
  MAY (
   uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
   tcdnetsoc-admin-comment $ mail ) )
