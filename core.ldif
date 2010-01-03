@@ -71,8 +71,8 @@ cn: shell
 objectClass: tcdnetsoc-group
 gidNumber: 60002
 
-dn: cn=autorenew,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
-cn: autorenew
+dn: cn=noexpire,ou=Privilege,ou=Group,dc=netsoc,dc=tcd,dc=ie
+cn: noexpire
 objectClass: tcdnetsoc-group
 gidNumber: 60003
 

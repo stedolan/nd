@@ -72,7 +72,7 @@ class User(NDObject):
         return gecos
 
     def has_account(self):
-        return 'posixAccount' in self.objectClass
+        return 'posixAccount' in self.objectClass and self.can_bind()
 
 
     def destroy(self):
@@ -132,8 +132,8 @@ class User(NDObject):
 
 
     disabled_shells = ['renew','bold','expired','dead']
-    disabled_shells_base = "/usr/local/spoon/special_shells/"
-    first_login_shell = "/usr/local/spoon/special_shells/accept_AUP"
+    disabled_shells_base = "/usr/local/special_shells/"
+    first_login_shell = "/usr/local/special_shells/accept_AUP"
     homedir_pattern = "/home/%s"
     default_login_shell = "/bin/bash"
     states = ['active','disabled','renew','bold','expired','dead']
@@ -225,7 +225,7 @@ class User(NDObject):
                 else:
                     s = "expired"
         elif st == "disabled":
-            if not self._has_disabled_shell() and noexpire:
+            if not self._has_disabled_shell():
                 s = "active"
             else:
                 s = "disabled"

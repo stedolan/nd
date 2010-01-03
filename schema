@@ -32,8 +32,10 @@ attributetype ( na:3
  DESC 'Year of membership'
  EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
 
-
-
+attributetype ( na:4
+ NAME 'tcdnetsoc-admin-comment'
+ DESC 'Comment'
+ EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX directoryString )
 
 # A member or user of Netsoc
 # This covers every person in the database. Those who are currently paid-up members
@@ -57,7 +59,8 @@ objectclass ( no:1
  MUST (
   uidNumber )
  MAY (
-  uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year ) )
+  uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
+  tcdnetsoc-admin-comment $ mail ) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'
