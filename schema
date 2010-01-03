@@ -41,12 +41,12 @@ attributetype ( na:4
 attributetype ( na:5
  NAME 'tcdnetsoc-service-granted'
  DESC 'Service that a privilege grants access to'
- EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX distinguishedName )
+ EQUALITY distinguishedNameMatch SYNTAX distinguishedName )
 
 attributetype ( na:6
  NAME 'tcdnetsoc-granted-by-privilege'
  DESC 'Privilege sufficient to grant access to a service'
- EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX distinguishedName )
+ EQUALITY distinguishedNameMatch SYNTAX distinguishedName )
 
 # A member or user of Netsoc
 # This covers every person in the database. Those who are currently paid-up members
