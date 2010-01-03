@@ -281,7 +281,15 @@ class Privilege(Group):
     '''Groups controlling access to specific services, for instance webspace or
     filestorage'''
     rdn_attr = 'cn'
+    def check(self):
+        assert 'tcdnetsoc-privilege' in self.objectClass
 
+
+class Service(NDObject):
+    rdn_attr = 'cn'
+    def get_password(self):
+        return self.get_attribute("userPassword")
+    
 
 class IDNumber(NDObject):
     """Allocator for new ID numbers such as UID and GID.
@@ -328,7 +336,11 @@ Attribute('uidNumber', int)
 Attribute('gidNumber', int)
 Attribute('homeDirectory', str)
 Attribute('cn', str)
+Attribute('userPassword', str)
+Attribute('mail', str)
+Attribute('tcdnetsoc_admin_comment', [str])
 Attribute('member', [User])
 Attribute('memberOf', [Group], backlink='member')
-
+Attribute('tcdnetsoc_service_granted', [Service])
+Attribute('tcdnetsoc_granted_by_privilege', [Privilege], backlink='tcdnetsoc_service_granted')
 
