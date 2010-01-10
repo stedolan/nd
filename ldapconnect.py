@@ -3,7 +3,7 @@
 # including binding, authentication and so on
 
 import ldap, ldapurl, ldap.sasl
-from logging import *
+from ldaplogging import *
 
 
 _ldap_conn = None

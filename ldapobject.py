@@ -2,7 +2,7 @@
 # the framework for mapping between LDAP entries and Python objects
 
 import ldap, ldap.dn, ldapurl, ldap.filter
-from logging import *
+from ldaplogging import *
 import ldapconnect as lc
 
 
