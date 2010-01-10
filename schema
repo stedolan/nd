@@ -48,6 +48,18 @@ attributetype ( na:6
  DESC 'Privilege sufficient to grant access to a service'
  EQUALITY distinguishedNameMatch SYNTAX distinguishedName )
 
+attributetype ( na:7
+ NAME 'tcdnetsoc-diskquota'
+ DESC 'Disk quota entry (host:fs:blocks_soft:blocks_hard:inodes_soft:inodes_hard)'
+ EQUALITY caseIgnoreMatch SYNTAX directoryString )
+
+attributetype ( na:8
+ NAME 'tcdnetsoc-diskusage'
+ DESC 'Disk usage entry (host:fs:blocks_used:blocks_soft:blocks_hard:inodes_used:inodes_soft:inodes_hard)'
+ EQUALITY caseIgnoreMatch SYNTAX directoryString )
+
+
+
 # A member or user of Netsoc
 # This covers every person in the database. Those who are currently paid-up members
 # will have a tcdnetsoc-membership-year attribute storing the current year.
@@ -70,7 +82,7 @@ objectclass ( no:1
   uidNumber $ cn )
  MAY (
   uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
-  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell ) )
+  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell $ tcdnetsoc-diskquota $ tcdnetsoc-diskusage) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'

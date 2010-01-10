@@ -251,6 +251,88 @@ class User(NDObject):
             assert 'posixAccount' in self.objectClass
             assert self.get_personal_group() is not None
 
+    # Disk quotas
+    class fs:
+        home = "cuberoot.netsoc.tcd.ie:/srv/userhome"
+
+    def quota(self, fs):
+        return User.Quota(self, fs)
+
+    class Quota:
+        def __init__(self, user, fs):
+            self.user = user
+            self.fs = fs
+
+        _sizes = {'T': 1024 ** 4, 'G': 1024 ** 3, 'M': 1024 ** 2, 'K': 1024}
+        # bytes <-> human-readable size conversions
+        @staticmethod
+        def parse_size(sz):
+            if sz == "unlimited": return 0
+            sz = str(sz)
+            m=1
+            for s in User.Quota._sizes:
+                if sz.endswith(s):
+                    m = User.Quota._sizes[s]
+                    sz = sz[0:-1]
+                    break
+            return int(float(sz) * m)
+        @staticmethod
+        def write_size(sz):
+            if sz == 0: return "unlimited"
+            sz = float(sz)
+            suffix = ""
+            for name,s in reversed(sorted(User.Quota._sizes.iteritems(), key=lambda (a,b):b)):
+                if sz > 0.9 * s:
+                    suffix = name
+                    sz /= float(s)
+                    break
+            return "%.1f%s" % (sz, name)
+            
+        def _get_quota(self):
+            for i in self.user.tcdnetsoc_diskquota:
+                if i.startswith(self.fs + ":"):
+                    return [int(x) for x in i.split(":")[2:6]]
+            return None, None, None, None
+        def _set_quota(self, l):
+            for i in self.user.tcdnetsoc_diskquota:
+                if i.startswith(self.fs + ":"):
+                    self.user.tcdnetsoc_diskquota -= i
+            self.user.tcdnetsoc_diskquota += ":".join([self.fs] + [str(x) for x in l])
+        def _get_usage(self):
+            for i in self.user.tcdnetsoc_diskusage:
+                if i.startswith(self.fs + ":"):
+                    return [int(x) for x in i.split(":")[2:]]
+            return None, None, None, None, None, None
+
+        def set(self, sz, extra_size=10, bytes_per_inode=10*1024, inode_extra_size=10):
+            sz = self.parse_size(sz)
+            szlimit = sz / 1024  # max size in 1k blocks
+            inodelimit = float(sz) / float(bytes_per_inode) # inode limit
+            self._set_quota([
+                szlimit, # size in 1k blocks
+                int(float(szlimit) * (1 + 0.01 * extra_size)), # hardlimit
+                int(inodelimit), # max no. of inodes
+                int(inodelimit * (1 + 0.01 * inode_extra_size)) # inode hardlimit
+                ])
+
+        def __repr__(self):
+            blocksoft, blockhard, inodesoft, inodehard = self._get_quota()
+            blockused, xblocksoft, xblockhard, inodeused, xinodesoft, xinodehard = self._get_usage()
+            if blocksoft is None:
+                return "no quota set"
+            if blockused is None:
+                return "%s [no usage data]" % self.write_size(blocksoft)
+            s = "%s of %s (%d%%)" % (
+                self.write_size(blockused*1024),
+                self.write_size(blocksoft*1024),
+                100.0 * blockused / blocksoft)
+            if xblocksoft != blocksoft or xinodesoft != inodesoft or \
+               xblockhard != blockhard or xinodehard != inodehard:
+                s += " [with changes not yet applied]"
+            return s
+            
+                    
+
 
 class Group(NDObject):
     '''A group of users. Groups may contain any number of users, including zero'''
@@ -350,4 +432,5 @@ Attribute('member', [User])
 Attribute('memberOf', [Group], backlink='member')
 Attribute('tcdnetsoc_service_granted', [Service])
 Attribute('tcdnetsoc_granted_by_privilege', [Privilege], backlink='tcdnetsoc_service_granted')
-
+Attribute('tcdnetsoc_diskquota', [str])
+Attribute('tcdnetsoc_diskusage', [str])
