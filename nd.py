@@ -321,9 +321,9 @@ class User(NDObject):
             if blocksoft is None:
                 return "no quota set"
             if blockused is None:
-                return "%s [no usage data]" % self.write_size(blocksoft)
+                return "%s [no usage data]" % self.write_size(blocksoft*1024)
             s = "%s of %s (%d%%)" % (
-                self.write_size(blockused*1024),
+                self.write_size(blockused*1024 if blockused > 0 else "0"),
                 self.write_size(blocksoft*1024),
                 100.0 * blockused / blocksoft)
             if xblocksoft != blocksoft or xinodesoft != inodesoft or \
