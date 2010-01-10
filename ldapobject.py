@@ -324,6 +324,9 @@ class LDAPObject(object):
         if name.startswith("_"):
             # names that start with an underscore are not routed through LDAP
             raise AttributeError("No such attribute: " + name)
+        if name == "trait_names" or "(" in name:
+            # IPython causes some spurious calls to getattr, we have to ignore them
+            raise AttributeError("No such attribute: " + name)
         return self[name]
     def __setattr__(self, name, val):
         if isinstance(val, ValueSet):
