@@ -82,7 +82,8 @@ objectclass ( no:1
   uidNumber $ cn )
  MAY (
   uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
-  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell $ tcdnetsoc-diskquota $ tcdnetsoc-diskusage) )
+  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell $ tcdnetsoc-diskquota $ tcdnetsoc-diskusage $ 
+  sambaSID $ sambaPrimaryGroupSID ) )
 
 objectclass ( no:2
  NAME 'tcdnetsoc-group'
@@ -90,7 +91,7 @@ objectclass ( no:2
  SUP posixGroup
  STRUCTURAL
  MUST ( gidNumber )
- MAY ( member ) )
+ MAY ( member $ sambaSID $ sambaGroupType ) )
 
 objectclass ( no:3
  NAME 'tcdnetsoc-idnum'

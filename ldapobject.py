@@ -67,14 +67,14 @@ class LDAPClass(type):
             dn = dn_to_tuple(cls.base_dn)
             # dn must end with dnsuffix
             if len(dnsuffix) > 0 and not dn[-len(dnsuffix):] == dnsuffix:
-                raise TypeError("Invalid DN %s for class %s (must be under %s)" % (dn, cls, dnsuffix))
+                raise TypeError("Invalid DN %s for class %s (must be under %s)" % (dn, cls.__name__, dnsuffix))
         else:
             # classes are mapped to organizationalUnits
             dn = (("ou", cls.__name__),) + dnsuffix
         cmap = LDAPClass._classmap
         if dn in cmap:
-            raise TypeError("Duplicate classes (%s and %s) for DN %s" % (cls, cmap[dn], dn))
-        ldebug("rebuilding classmap: %s has base dn %s" % (cls, dn))
+            raise TypeError("Duplicate classes (%s and %s) for DN %s" % (cls.__name__, cmap[dn], dn))
+        ldebug("rebuilding classmap: %s has base dn %s" % (cls.__name__, dn))
         cmap[dn] = cls
         for subclass in cls.__subclasses__():
             subclass._update_class_tree(dn)
@@ -153,7 +153,7 @@ class LDAPClass(type):
                 modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(val)))
             
         dn = tuple_to_dn(((cls.rdn_attr, attrs[cls.rdn_attr]),) + cls.cls_dn_tuple)
-        linfo("Creating %s of type %s" %(dn, cls))
+        linfo("Creating %s of type %s" %(dn, cls.__name__))
         lc.add(dn, modlist)
         assert(LDAPClass.get_class_by_dn(dn) is cls)
 
@@ -179,6 +179,18 @@ class LDAPClass(type):
     def all_objs(cls):
         '''Return all instances of this class (or subclasses) stored in the LDAP tree'''
         return cls.search(SearchFilter.match_everything())
+
+    def __len__(cls):
+        '''Number of instances of this class (or subclasses) stored in the LDAP tree'''
+        return sum(1 for x in cls.all_objs())
+
+    def __iter__(cls):
+        '''Iterate over instances of this class (or subclasses) stored in the LDAP tree'''
+        for i in cls.all_objs(): yield i
+
+    def __repr__(cls):
+        return "<class '%s.%s' (%d objects)>" % (cls.__module__, cls.__name__, len(cls))
+
 
     def check_all(cls):
         '''Perform consistency checks. Each LDAP class may define a method check().

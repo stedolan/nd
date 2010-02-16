@@ -32,6 +32,11 @@ def read_small_file(file):
         # don't let the exception propagate
         return None
 
+def _get_samba_domain_sid():
+    return LDAPObject(obj_dn='sambaDomainName=NETSOC,dc=netsoc,dc=tcd,dc=ie').sambaSID
+
+
+
 
 class NDObject(LDAPObject):
     base_dn='dc=netsoc,dc=tcd,dc=ie'
@@ -74,6 +79,9 @@ class User(NDObject):
     def has_account(self):
         return 'posixAccount' in self.objectClass and self.can_bind()
 
+    def gen_samba_sid(self):
+        assert self.has_account()
+        return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
 
     def destroy(self):
         if self.has_account() and os.access(self.homeDirectory, os.F_OK):
@@ -251,6 +259,11 @@ class User(NDObject):
             assert 'posixAccount' in self.objectClass
             assert self.get_personal_group() is not None
 
+            assert 'sambaSamAccount' in self.objectClass
+            assert self.sambaSID == self.gen_samba_sid()
+            assert self.get_personal_group().sambaSID == self.sambaPrimaryGroupSID
+
+
     # Disk quotas
     class fs:
         home = "cuberoot.netsoc.tcd.ie:/srv/userhome"
@@ -345,6 +358,16 @@ class Group(NDObject):
     def __iter__(self):
         return iter(self.member)
 
+    def gen_samba_sid(self):
+        return "%s-%s" % (_get_samba_domain_sid(), self.gidNumber * 2 + 1001)
+
+
+    def check(self):
+        if 'sambaGroupMapping' in self.objectClass:
+            assert self.sambaGroupType == 2
+            assert self.sambaSID == self.gen_samba_sid()
+
+
 class PersonalGroup(Group):
     '''A PersonalGroup is a group with the same name as a user having only that user
     as a member. Its GID is the UID of the user and its name is the username of the user'''
@@ -361,6 +384,7 @@ class PersonalGroup(Group):
         assert user.gidNumber == self.gidNumber
         assert len(self.member) == 1
         assert user in self
+        assert 'sambaGroupMapping' in self.objectClass
 
 class Privilege(Group):
     '''Groups controlling access to specific services, for instance webspace or
@@ -434,3 +458,6 @@ Attribute('tcdnetsoc_service_granted', [Service])
 Attribute('tcdnetsoc_granted_by_privilege', [Privilege], backlink='tcdnetsoc_service_granted')
 Attribute('tcdnetsoc_diskquota', [str])
 Attribute('tcdnetsoc_diskusage', [str])
+Attribute('sambaSID', str)
+Attribute('sambaPrimaryGroupSID', str)
+Attribute('sambaGroupType', int)
