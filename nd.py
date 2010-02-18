@@ -35,6 +35,11 @@ def read_small_file(file):
 def _get_samba_domain_sid():
     return LDAPObject(obj_dn='sambaDomainName=NETSOC,dc=netsoc,dc=tcd,dc=ie').sambaSID
 
+def generate_password():
+    '''Generate a random password via pwgen'''
+    import subprocess
+    stdout, stderr = subprocess.Popen(["pwgen", "-nc"],stdout=subprocess.PIPE).communicate()
+    return stdout.strip()
 
 
 
@@ -49,6 +54,7 @@ class User(NDObject):
     user.has_account() will return True. For those users who have an account, their gidNumber
     refers to their PersonalGroup (see below)'''
     rdn_attr = 'uid'
+    default_objectclass = ['tcdnetsoc-person']
 
     valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
     root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
@@ -84,18 +90,31 @@ class User(NDObject):
         return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
 
     def destroy(self):
-        if self.has_account() and os.access(self.homeDirectory, os.F_OK):
-            raise Exception("Cannot destroy user %s since home directory still exists" % self)
+        # also destroy group
+        g = self.get_personal_group()
+        if g and g.exists():
+            self.get_personal_group().destroy()
         NDObject.destroy(self)
 
     def get_personal_group(self):
-        if self.has_account():
-            return PersonalGroup(self.uid)
-        else:
-            return None
+        return PersonalGroup(self.uid)
 
-    def passwd(self, old, new):
-        self._raw_passwd(old, new)
+    def passwd(self, new, old=None):
+        '''Change the password of a user from "old" to "new". If the old password
+        is not known, "old" can be omitted but changing the password then requires
+        admin permissions.
+        
+        See also generate_password.'''
+
+        # We need to do a Password Modify Extended Operation to get Samba passswords
+        # to update properly and to get secure hashing of the password. This requires
+        # the old password. So, if we don't have it, we temporarily reset the password
+        # via directly mungling userPassword, and then to a proper modify exop.
+        if old is None:
+            self.userPassword = new
+            self._raw_passwd(new, new)
+        else:
+            self._raw_passwd(new, old)
 
     def has_access(self, service):
         return service.has_access(self)
@@ -257,16 +276,103 @@ class User(NDObject):
             assert self.has_account()
             assert self.gidNumber == self.uidNumber
             assert 'posixAccount' in self.objectClass
-            assert self.get_personal_group() is not None
+            assert self.get_personal_group().exists()
 
             assert 'sambaSamAccount' in self.objectClass
             assert self.sambaSID == self.gen_samba_sid()
             assert self.get_personal_group().sambaSID == self.sambaPrimaryGroupSID
 
+    @classmethod
+    def create(cls, **attrs):
+        '''Create a new user. Users are always created in the "active" state, i.e.
+        they have a shell, webspace, etc. Requires that a username (uid), full name
+        (cn) and email address (mail) be chosen, all other attributes will be given
+        correct defaults.
+
+        If a password is not specified (userPassword), a random one will be 
+        generated.
+
+        If a uidNumber is not specified, a new one will be allocated. If a gidNumber
+        is specified, it must match the uidNumber and it will be taken to mean that
+        the group has already been created.
+
+        For users who are College students, a tcdnetsoc_ISS_username should be 
+        specified.
+
+        By default, newly-created accounts will be marked as members for the curent
+        year. If this is not desired, specify "tcdnetsoc_membership_year=[]".
+
+        Disk quotas are set to the default for each filesystem, they can be changed
+        via User.quota.
+
+        TLDR: User.create(uid="foo",
+                          cn="Foo Barbaz",
+                          mail="foo@barbaz.com",
+                          tcdnetsoc_ISS_username="foob")'''
+        for a in ['uid','cn','mail']:
+            if a not in attrs:
+                raise Exception("Users must have a 'a'" % a)
+        if User(attrs['uid']).exists():
+            raise Exception("Uid %s is taken" % attrs['uid'])
+        if not User.valid_username.match(attrs['uid']):
+            raise Exception("Invalid username %s" % attrs['uid'])
+        if 'uidNumber' not in attrs:
+            attrs['uidNumber'] = UIDAllocator.alloc()
+        if 'gidNumber' not in attrs:
+            mkgrp = True
+            attrs['gidNumber'] = attrs['uidNumber']
+        if 'loginShell' not in attrs:
+            attrs['loginShell'] = User.first_login_shell
+        if 'userPassword' in attrs:
+            password = attrs['userPassword']
+            del attrs['userPassword']
+        else:
+            password = generate_password()
+        if 'tcdnetsoc_membership_year' not in attrs:
+            attrs['tcdnetsoc_membership_year'] = [current_session()]
+        attrs['homeDirectory'] = '/home/' + attrs['uid']
+
+
+        u = super(User,cls).create(**attrs)
+
+
+        if mkgrp:
+            g = PersonalGroup.create(cn = u.uid,
+                                     member = [u],
+                                     gidNumber = u.gidNumber)
+            g.sambaSID = g.gen_samba_sid()
+            g.sambaGroupType = 2
+            g.objectClass += 'sambaGroupMapping'
+
+
+        print "Password for %s set to %s" % (u.uid, password)
+        u.passwd(password)
+                            
+                            
+        if 'posixAccount' not in u.objectClass:
+            u.objectClass += 'posixAccount'
+        if 'sambaSID' not in attrs:
+            u.sambaSID = u.gen_samba_sid()
+        if 'sambaPrimaryGroupSID' not in attrs:
+            u.sambaPrimaryGroupSID = u.get_personal_group().gen_samba_sid()
+        if 'sambaSamAccount' not in u.objectClass:
+            u.objectClass += 'sambaSamAccount'
+
+
+        u.memberOf += Privilege("shell")
+        u.memberOf += Privilege("webspace")
+        for fs, q in User.default_quotas.iteritems():
+            u.quota(fs).set(q)
+        return u
 
     # Disk quotas
     class fs:
         home = "cuberoot.netsoc.tcd.ie:/srv/userhome"
+        webspace = "cuberoot.netsoc.tcd.ie:/srv/userweb"
+    default_quotas = {
+        fs.home: "4G",
+        fs.webspace: "1G"
+        }
 
     def quota(self, fs):
         return User.Quota(self, fs)
@@ -350,6 +456,7 @@ class User(NDObject):
 class Group(NDObject):
     '''A group of users. Groups may contain any number of users, including zero'''
     rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-group']
 
     # Allow "user in group" and "for user in group" as shorthands for
     # "user in group.member" and "for user in group.member"
@@ -372,6 +479,7 @@ class PersonalGroup(Group):
     '''A PersonalGroup is a group with the same name as a user having only that user
     as a member. Its GID is the UID of the user and its name is the username of the user'''
     rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-group']
         
     def get_user(self):
         return User(self.cn)
@@ -385,17 +493,20 @@ class PersonalGroup(Group):
         assert len(self.member) == 1
         assert user in self
         assert 'sambaGroupMapping' in self.objectClass
+        
 
 class Privilege(Group):
     '''Groups controlling access to specific services, for instance webspace or
     filestorage'''
     rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-group']
     def check(self):
         assert 'tcdnetsoc-privilege' in self.objectClass
 
 
 class Service(NDObject):
     rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-service']
     def get_password(self):
         return self.get_attribute("userPassword")
 
@@ -409,6 +520,7 @@ class IDNumber(NDObject):
     The next ID is stored in the allocator object, and when a new one is requested
     the field is atomically incremented and the old value is returned"""
     rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-idnum']
     def _setnum(self, old, new):
         # Minor hack: we use _raw_modattrs to ensure atomicity
         # Without it, there's a race condition

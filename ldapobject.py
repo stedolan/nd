@@ -131,67 +131,6 @@ class LDAPClass(type):
         # we get the class and call the constructor, passing the DN
         return LDAPClass.get_class_by_dn(dn_str)(obj_dn = dn_str)
 
-
-    # Create is a class method, yet destroy is an instance method
-    # This asymmetry makes sense: User.create('someuser') yet someuser.destroy()
-    def create(cls, **attrs):
-        '''Create an object of this class'''
-        if cls.rdn_attr not in attrs:
-            raise TypeError("All %s objects must have a %s field" % (cls, cls.rdn_attr))
-        modlist = []
-        backlinks = []
-        for key in attrs:
-            val = attrs[key]
-            attribute = Attribute.get_attribute(key)
-            if attribute.is_multival():
-                if attribute.is_backlink_attr():
-                    backlinks.append(key)
-                else:
-                    for v in val:
-                        modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(v)))
-            else:
-                modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(val)))
-            
-        dn = tuple_to_dn(((cls.rdn_attr, attrs[cls.rdn_attr]),) + cls.cls_dn_tuple)
-        linfo("Creating %s of type %s" %(dn, cls.__name__))
-        lc.add(dn, modlist)
-        assert(LDAPClass.get_class_by_dn(dn) is cls)
-
-        ret_obj = cls(obj_dn = dn)
-        
-        for key in backlinks:
-            for obj in attrs[key]:
-                getattr(ret_obj, key).add(obj)
-        
-        return ret_obj
-
-    
-    def search(cls, filter):
-        '''Search for instances of this class in the LDAP tree'''
-        #FIXME: list or generator?? search or search_s??
-        for (dn, _) in lc.search(cls.cls_dn_str, ldap.SCOPE_SUBTREE, filter.filterstr, []):
-            if dn_to_tuple(dn) not in LDAPClass._classmap:
-                subcls = LDAPClass.get_class_by_dn(dn)
-                assert(issubclass(subcls, cls))
-                yield subcls(obj_dn = dn)
-
-
-    def all_objs(cls):
-        '''Return all instances of this class (or subclasses) stored in the LDAP tree'''
-        return cls.search(SearchFilter.match_everything())
-
-    def __len__(cls):
-        '''Number of instances of this class (or subclasses) stored in the LDAP tree'''
-        return sum(1 for x in cls.all_objs())
-
-    def __iter__(cls):
-        '''Iterate over instances of this class (or subclasses) stored in the LDAP tree'''
-        for i in cls.all_objs(): yield i
-
-    def __repr__(cls):
-        return "<class '%s.%s' (%d objects)>" % (cls.__module__, cls.__name__, len(cls))
-
-
     def check_all(cls):
         '''Perform consistency checks. Each LDAP class may define a method check().
         When this method is run, all of the check() methods appropriate to each object
@@ -219,6 +158,25 @@ class LDAPClass(type):
                                     pass
         except Exception, e:
             lerr("Can't iterate over objects of class %s: %s" % (cls, e))
+
+
+    def all_objs(cls):
+        '''Return all instances of this class (or subclasses) stored in the LDAP tree'''
+        return cls.search(SearchFilter.match_everything())
+
+    def __len__(cls):
+        '''Number of instances of this class (or subclasses) stored in the LDAP tree'''
+        return sum(1 for x in cls.all_objs())
+
+    def __iter__(cls):
+        '''Iterate over instances of this class (or subclasses) stored in the LDAP tree'''
+        for i in cls.all_objs(): yield i
+
+    def __repr__(cls):
+        return "<class '%s.%s' (%d objects)>" % (cls.__module__, cls.__name__, len(cls))
+
+
+
 
 class LDAPObject(object):
     '''The base class of all LDAP-mapped classes. Each LDAP class inherits from
@@ -264,7 +222,7 @@ class LDAPObject(object):
         r = lc.modrdn(self.get_dn(), tuple_to_dn(rdn_part))
         self._dn = tuple_to_dn(rdn_part + dn_to_tuple(self._dn)[1:])
         return r
-    def _raw_passwd(self, old, new):
+    def _raw_passwd(self, new, old):
         lc.passwd(self.get_dn(), old, new)
 
     def get_attribute(self, name):
@@ -376,6 +334,59 @@ class LDAPObject(object):
             return True
         except ldap.NO_SUCH_OBJECT:
             return False
+
+
+
+    # Create is a class method, yet destroy is an instance method
+    # This asymmetry makes sense: User.create('someuser') yet someuser.destroy()
+    @classmethod
+    def create(cls, **attrs):
+        '''Create an object of this class'''
+        if cls.rdn_attr not in attrs:
+            raise TypeError("All %s objects must have a %s field" % (cls, cls.rdn_attr))
+        if hasattr(cls, "default_objectclass"):
+            if 'objectClass' not in attrs:
+                attrs['objectClass'] = list(cls.default_objectclass)
+        modlist = []
+        backlinks = []
+        for key in attrs:
+            val = attrs[key]
+            attribute = Attribute.get_attribute(key)
+            if attribute.is_multival():
+                if attribute.is_backlink_attr():
+                    backlinks.append(key)
+                else:
+                    for v in val:
+                        modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(v)))
+            else:
+                modlist.append((attribute.get_ldap_name(), attribute.py_to_ldap(val)))
+            
+        dn = tuple_to_dn(((cls.rdn_attr, attrs[cls.rdn_attr]),) + cls.cls_dn_tuple)
+        linfo("Creating %s of type %s" %(dn, cls.__name__))
+        lc.add(dn, modlist)
+        assert(LDAPClass.get_class_by_dn(dn) is cls)
+
+        ret_obj = cls(obj_dn = dn)
+        
+        for key in backlinks:
+            for obj in attrs[key]:
+                getattr(ret_obj, key).add(obj)
+        
+        return ret_obj
+
+    @classmethod
+    def search(cls, filter):
+        '''Search for instances of this class in the LDAP tree'''
+        #FIXME: list or generator?? search or search_s??
+        for (dn, _) in lc.search(cls.cls_dn_str, ldap.SCOPE_SUBTREE, filter.filterstr, []):
+            if dn_to_tuple(dn) not in LDAPClass._classmap:
+                subcls = LDAPClass.get_class_by_dn(dn)
+                assert(issubclass(subcls, cls))
+                yield subcls(obj_dn = dn)
+
+
+
+
 
 
 match_exact = lambda attr, value: "(%s=%s)" % (attr, ldap.filter.escape_filter_chars(value))
