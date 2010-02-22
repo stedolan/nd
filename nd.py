@@ -96,6 +96,15 @@ class User(NDObject):
             self.get_personal_group().destroy()
         NDObject.destroy(self)
 
+    def reset_mysql_pw(self, pw=None):
+        '''Change the MySQL password for a user. When the password is changed,
+        the database is automatically created'''
+        if pw is None:
+            pw = generate_password()
+        # when this field changes, the update_ldap_mysql script will notice
+        # and update mysql accordingly
+        self.tcdnetsoc_mysql_pw = pw
+
     def get_personal_group(self):
         return PersonalGroup(self.uid)
 
@@ -573,3 +582,4 @@ Attribute('tcdnetsoc_diskusage', [str])
 Attribute('sambaSID', str)
 Attribute('sambaPrimaryGroupSID', str)
 Attribute('sambaGroupType', int)
+Attribute('tcdnetsoc_mysql_pw', str)

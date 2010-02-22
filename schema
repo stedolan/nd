@@ -58,6 +58,11 @@ attributetype ( na:8
  DESC 'Disk usage entry (host:fs:blocks_used:blocks_soft:blocks_hard:inodes_used:inodes_soft:inodes_hard)'
  EQUALITY caseIgnoreMatch SYNTAX directoryString )
 
+attributetype ( na:9
+ NAME 'tcdnetsoc-mysql-pw'
+ DESC 'MySQL password for per-user database'
+ SINGLE-VALUE
+ EQUALITY caseExactMatch SYNTAX directoryString )
 
 
 # A member or user of Netsoc
@@ -82,7 +87,7 @@ objectclass ( no:1
   uidNumber $ cn )
  MAY (
   uid $ gidNumber $ homeDirectory $ tcdnetsoc-ISS-username $ tcdnetsoc-membership-year $ 
-  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell $ tcdnetsoc-diskquota $ tcdnetsoc-diskusage $ 
+  tcdnetsoc-admin-comment $ mail $ userPassword $ loginShell $ tcdnetsoc-diskquota $ tcdnetsoc-diskusage $ tcdnetsoc-mysql-pw $
   sambaSID $ sambaPrimaryGroupSID ) )
 
 objectclass ( no:2
