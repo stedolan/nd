@@ -372,6 +372,9 @@ class User(NDObject):
         u.memberOf += Privilege("webspace")
         for fs, q in User.default_quotas.iteritems():
             u.quota(fs).set(q)
+
+        u.reset_mysql_pw()
+
         return u
 
     # Disk quotas
