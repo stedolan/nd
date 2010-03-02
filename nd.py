@@ -525,6 +525,14 @@ class Service(NDObject):
     def has_access(self, user):
         return len(list(Privilege.search(SearchFilter.all(tcdnetsoc_service_granted=self,
                                                           member=user)))) != 0
+    @classmethod
+    def create(cls, **attrs):
+        if 'userPassword' not in attrs:
+            attrs['userPassword'] = generate_password()
+        o = super(Service,cls).create(**attrs)
+        print "Generated password '%s' for %s" % (attrs['userPassword'], o.cn)
+        return o
+        
     
 
 class IDNumber(NDObject):
