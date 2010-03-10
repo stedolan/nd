@@ -3,6 +3,7 @@
 from ldapobject import *
 import pwd, grp, posix, os, stat, time
 import re
+from sendmail import *
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -124,6 +125,18 @@ class User(NDObject):
             self._raw_passwd(new, new)
         else:
             self._raw_passwd(new, old)
+
+    def reset_password(self):
+        if not self.has_account():
+            raise Exception("User account is disabled, password cannot be reset")
+        pw = generate_password()
+        self.passwd(pw)
+        addr = self.get_attribute("mail")
+        if addr is None:
+            lwarn("No mail address recorded for user %s (%s), can't send password reset message" % 
+                  (self.get_attribute("uid"), self.get_attribute("cn")))
+        else:
+            sendmail("password_reset", to=addr, username=self.uid, password=pw)
 
     def has_access(self, service):
         return service.has_access(self)
