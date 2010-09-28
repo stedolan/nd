@@ -64,6 +64,11 @@ attributetype ( na:9
  SINGLE-VALUE
  EQUALITY caseExactMatch SYNTAX directoryString )
 
+attributetype ( na:10
+ NAME 'tcdnetsoc-value'
+ DESC 'Configuration setting stored in LDAP'
+ EQUALITY caseExactMatch SYNTAX directoryString )
+
 
 # A member or user of Netsoc
 # This covers every person in the database. Those who are currently paid-up members
@@ -120,3 +125,9 @@ objectclass ( no:5
  MUST ( cn ) 
  MAY ( tcdnetsoc-granted-by-privilege $ userPassword $ uid $ mail ) )
  
+objectclass ( no:6
+ NAME 'tcdnetsoc-setting'
+ DESC 'Arbitrary name-value setting'
+ STRUCTURAL
+ MUST ( cn )
+ MAY ( tcdnetsoc-value ) )

@@ -563,6 +563,10 @@ class ValueSet(object):
     def __contains__(self, val):
         return val in self._get_attr_list()
 
+    def first(self):
+        '''Return the first item from the set'''
+        return self._get_attr_list()[0]
+
 
     def add(self, val):
         '''Add a value to the set. This fails with an exception if the value is

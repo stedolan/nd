@@ -12,7 +12,7 @@ def current_session():
     month or two to fix things. FIXME: should it?
     '''
     year, month = time.gmtime()[0:2]
-    if month >= 8:
+    if month >= 10:
         year += 1
     return "%4d-%4d" % (year-1, year)
 
@@ -583,6 +583,36 @@ UIDAllocator = IDNumber('next-uid')
 GIDAllocator = IDNumber('next-gid')
 
 
+class Setting(NDObject):
+    """Arbitrary configuration-style key-value setting, stored in LDAP to be accessible from all Netsoc machines"""
+    rdn_attr = 'cn'
+    default_objectclass = ['tcdnetsoc-setting']
+    def _setnum(self, old, new):
+        # Minor hack: we use _raw_modattrs to ensure atomicity
+        # Without it, there's a race condition
+        self._raw_modattrs([
+            (ldap.MOD_DELETE, 'tcdnetsoc-value', str(old)),
+            (ldap.MOD_ADD, 'tcdnetsoc-value', str(new))])
+        
+    def alloc(self):
+        # try to atomically allocate a new number (UID, GID, etc)
+        # attempt it 3 times in case it fails because someone else
+        # is also allocating numbers
+        for attempt in range(3):
+            currid = int(self.tcdnetsoc_value.first())
+            try:
+                self._setnum(currid, currid+1)
+            except ldap.NO_SUCH_ATTRIBUTE, e:
+                time.sleep(random.random() * 0.1)
+                continue
+            return currid
+        raise e
+
+    def check(self):
+        assert 'tcdnetsoc-setting' in self.objectClass
+
+
+
 Attribute('objectClass', [str])
 Attribute('serialNumber', int)
 Attribute('tcdnetsoc_membership_year', [str])
@@ -603,6 +633,7 @@ Attribute('tcdnetsoc_service_granted', [Service])
 Attribute('tcdnetsoc_granted_by_privilege', [Privilege], backlink='tcdnetsoc_service_granted')
 Attribute('tcdnetsoc_diskquota', [str])
 Attribute('tcdnetsoc_diskusage', [str])
+Attribute('tcdnetsoc_value', [str])
 Attribute('sambaSID', str)
 Attribute('sambaPrimaryGroupSID', str)
 Attribute('sambaGroupType', int)
