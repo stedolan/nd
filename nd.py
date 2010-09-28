@@ -57,7 +57,6 @@ class User(NDObject):
     rdn_attr = 'uid'
     default_objectclass = ['tcdnetsoc-person']
 
-    valid_username = re.compile("^[a-z_][a-z0-9_-]*$")
     root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
 
 
@@ -89,6 +88,15 @@ class User(NDObject):
     def gen_samba_sid(self):
         assert self.has_account()
         return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
+
+    @staticmethod
+    def username_is_valid(name):
+        regex = Setting("valid_username_regex").tcdnetsoc_value.first()
+        return \
+            re.match("^" + regex + "$", name) is not None \
+            and \
+            name not in Setting("bad_usernames").tcdnetsoc_value
+            
 
     def destroy(self):
         # also destroy group
@@ -336,7 +344,7 @@ class User(NDObject):
                 raise Exception("Users must have a 'a'" % a)
         if User(attrs['uid']).exists():
             raise Exception("Uid %s is taken" % attrs['uid'])
-        if not User.valid_username.match(attrs['uid']):
+        if not User.username_is_valid(attrs['uid']):
             raise Exception("Invalid username %s" % attrs['uid'])
         if 'uidNumber' not in attrs:
             attrs['uidNumber'] = UIDAllocator.alloc()
