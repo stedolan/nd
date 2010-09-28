@@ -499,6 +499,12 @@ class Group(NDObject):
             assert self.sambaGroupType == 2
             assert self.sambaSID == self.gen_samba_sid()
 
+    @classmethod
+    def create(cls, **attrs):
+        if 'gidNumber' not in attrs:
+            attrs['gidNumber'] = GIDAllocator.alloc()
+        return super(Group, cls).create(**attrs)
+
 
 class PersonalGroup(Group):
     '''A PersonalGroup is a group with the same name as a user having only that user
@@ -524,7 +530,7 @@ class Privilege(Group):
     '''Groups controlling access to specific services, for instance webspace or
     filestorage'''
     rdn_attr = 'cn'
-    default_objectclass = ['tcdnetsoc-group']
+    default_objectclass = ['tcdnetsoc-privilege']
     def check(self):
         assert 'tcdnetsoc-privilege' in self.objectClass
 
