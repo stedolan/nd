@@ -11,10 +11,11 @@ def current_session():
     The next session starts at the beginning of August, to give us a
     month or two to fix things. FIXME: should it?
     '''
-    year, month = time.gmtime()[0:2]
-    if month >= 10:
-        year += 1
-    return "%4d-%4d" % (year-1, year)
+#    year, month = time.gmtime()[0:2]
+#    if month >= 10:
+#        year += 1
+#    return "%4d-%4d" % (year-1, year)
+    return Setting("current_session").tcdnetsoc_value.first()
 
 
 def read_small_file(file):
@@ -102,6 +103,8 @@ class User(NDObject):
         '''Change the MySQL password for a user. When the password is changed,
         the database is automatically created'''
         if pw is None:
+            pw = self.get_attribute('tcdnetsoc_mysql_pw')
+        if pw is None:
             pw = generate_password()
         # when this field changes, the update_ldap_mysql script will notice
         # and update mysql accordingly
@@ -109,6 +112,11 @@ class User(NDObject):
 
     def get_personal_group(self):
         return PersonalGroup(self.uid)
+
+
+    def mark_member(self):
+        if current_session() not in self.tcdnetsoc_membership_year:
+            self.tcdnetsoc_membership_year += current_session()
 
     def passwd(self, new, old=None):
         '''Change the password of a user from "old" to "new". If the old password
@@ -175,7 +183,10 @@ class User(NDObject):
         return info
 
     def __repr__(self):
-        return "<User %s (%s)>" % (self.uid, self.cn)
+        if self.exists():
+            return "<User %s (%s)>" % (self.uid, self.cn)
+        else:
+            return "<no such user>"
 
 
     @staticmethod
@@ -191,15 +202,19 @@ class User(NDObject):
     # These are the states for users with accounts
     # In theory, there is also a state "archived", when the posixAccount objectclass is removed from the
     # user and their home directories are archived
-    states = ['shell','renew','bold','expired','dead','archived']
+    states = ['shell','renew','bold','expired','dead','archived','newmember']
 
     def get_state(self):
         if self.has_account():
             for state in User.states:
                 if state != "archived" and self in Privilege(state):
                     return state
-
-        return "archived"
+            assert 0 # should be impossible to get here
+        else:
+            if self.get_attribute("tcdnetsoc_saved_password") == "***newmember***":
+                return "newmember"
+            else:
+                return "archived"
 
 
     def set_state(self, newst, newpasswd = None):
@@ -207,7 +222,11 @@ class User(NDObject):
         st = self.get_state()
         if st == newst:
             return
-        if newst == "archived":
+        if st == "newmember" and newst not in ["archived","shell","newmember"]:
+            raise Exception("User doesn't have an account, so it can't be set to %s" % newst)
+        if newst == "newmember":
+            raise Exception("that makes no sense")
+        elif newst == "archived":
 #            self.objectClass -= "posixAccount"
 #            # FIXME: remove other privileges as well??
 #            if self.has_priv("shell"):
@@ -234,27 +253,59 @@ class User(NDObject):
 #            self.objectClass += "posixAccount"
 #            Privilege("shell").member += self
         else:
-            Privilege(st).member -= self
+            if st == "newmember":
+                del self.tcdnetsoc_saved_password
+            else:
+                Privilege(st).member -= self
             Privilege(newst).member += self
             if newst == "shell":
-                # adding shell, restore old password (if any)
+                # ensure GID is set
+                if self.get_attribute('gidNumber') == None:
+                    self.gidNumber = self.uidNumber
+                
+                # ensure homedir is set
+                if self.get_attribute('homeDirectory') is None:
+                    self.homeDirectory = '/home/' + self.uid
+
+                # ensure group exists
+                self.create_personal_group()
+
+                self.objectClass += 'posixAccount'
+
+                # (re-)enable Samba
+                if st == 'newmember':
+                    self.setup_samba_account()
+                else:
+                    self.objectClass += 'sambaSamAccount'
+
+                # restore old password (if any)
                 if newpasswd is not None:
                     self.passwd(newpasswd)
                 elif self.get_attribute("tcdnetsoc_saved_password") is not None:
                     self.userPassword = self.tcdnetsoc_saved_password
                 else:
                     pwd = generate_password()
-                    lwarn("Setting password for %s to %s", self.uid, pwd)
+                    lwarn("Setting password for %s to %s" % ( self.uid, pwd))
                     self.passwd(pwd)
-                
-                # (re-)enable Samba
-                if 'sambaSamAccount' not in self.objectClass:
-                    self.objectClass += 'sambaSamAccount'
-    
+
                 # set shell if necessary
-                if self.get_attribute("loginShell") is None:
+                if self.get_attribute("loginShell") is None or "special_shell" in self.loginShell or \
+                        st in ["bold","dead"]: # get AUP-violating users to re-accept AUP
                     self.loginShell = User.first_login_shell
+
+                # expired and newmember users get webspace
+                # renew users didn't lose it
+                # and bold/dead users don't get it without admin intervention
+                if st in ["expired", "newmember"]:
+                    self.memberOf += Privilege("webspace")
+
+                self.reset_mysql_pw()
+                
+                # FIXME quotas
             else:
+                # can't be a new member if the account is being set to [rewew,expired,bold,dead]
+                # since you need to have had an account for those things to happen
+                assert st != "newmember"
                 # removing shell, save old password
                 if self.can_bind():
                     self.tcdnetsoc_saved_password = self.userPassword
@@ -295,22 +346,28 @@ class User(NDObject):
                     s = "renew"
                 else:
                     s = "expired"
+        elif st == "newmember":
+            # new members' accounts stay as they are until they set up a real account
+            s = "newmember"
         elif st == "archived":
+            # archived accounts stay archived
             s = "archived"
         elif st == "bold":
+            # bold accounts only get re-enabled with admin intervention
             s = "bold"
         elif st == "dead":
+            # dead accounts only get re-enabled (or more likely, archived) with admin intervention
             s = "dead"
         return s
 
     def check(self):
         assert 'tcdnetsoc-person' in self.objectClass
 
-        stategroups = [Privilege(x) for x in User.states if x != "archived"]
+        stategroups = [Privilege(x) for x in User.states if x not in ["archived","newmember"]]
         currentstategroups = [g for g in stategroups if self in g]
 
         st = self.get_state()
-        if st == "archived":
+        if st in ["archived","newmember"]:
             assert not self.has_account()
             assert not self.can_bind()
             assert len(currentstategroups) == 0
@@ -355,55 +412,95 @@ class User(NDObject):
                           cn="Foo Barbaz",
                           mail="foo@barbaz.com",
                           tcdnetsoc_ISS_username="foob")'''
-        for a in ['uid','cn','mail']:
+        for a in ['cn','mail']:
             if a not in attrs:
-                raise Exception("Users must have a 'a'" % a)
+                raise Exception("Users must have a '%s'" % a)
+
+        if 'uidNumber' not in attrs:
+            attrs['uidNumber'] = UIDAllocator.alloc()
+
+        makeshell = 'uid' in attrs
+        if 'uid' not in attrs:
+            attrs['uid'] = "user%d" % attrs['uidNumber']
+
+        if 'tcdnetsoc_membership_year' not in attrs:
+            attrs['tcdnetsoc_membership_year'] = [current_session()]
         if User(attrs['uid']).exists():
             raise Exception("Uid %s is taken" % attrs['uid'])
         if not User.username_is_valid(attrs['uid']):
             raise Exception("Invalid username %s" % attrs['uid'])
-        if 'uidNumber' not in attrs:
-            attrs['uidNumber'] = UIDAllocator.alloc()
-        if 'gidNumber' not in attrs:
+
+        attrs['tcdnetsoc_saved_password'] = '***newmember***'
+        u = super(User,cls).create(**attrs)
+
+        if makeshell:
+            u.set_state("shell")
+        
+        return u
+
+    def create_personal_group(self):
+        '''Create the personal group for this user, a group containing only them.
+        Used as the default group for their files.
+
+        (You should never need to call this directly)'''
+
+        if self.get_attribute('gidNumber') is None:
+            self.gidNumber = self.uidNumber
+        if self.get_personal_group().exists():
+            return # no need to create it
+        g = PersonalGroup.create(cn = self.uid,
+                                 member = [self],
+                                 gidNumber = self.gidNumber)
+        g.sambaSID = g.gen_samba_sid()
+        g.sambaGroupType = 2
+        g.objectClass += 'sambaGroupMapping'
+    
+    def setup_samba_account(self):
+        '''Set up a Samba account for this user (samba cannot use standard Posix account
+        info for reasons best known to the "designers" of the SMB protocol).
+
+        Note: the password must be changed, even to the same value, after this is called.
+
+        (You should never need to call this directly)'''
+        assert 'posixAccount' in self.objectClass
+        if self.get_attribute('sambaSID') is None:
+            self.sambaSID = self.gen_samba_sid()
+        if self.get_attribute('sambaPrimaryGroupSID') is None:
+            self.sambaPrimaryGroupSID = self.get_personal_group().gen_samba_sid()
+        if 'sambaSamAccount' not in self.objectClass:
+            self.objectClass += 'sambaSamAccount'
+        
+
+    def addshell(self, **attrs):
+        if self.get_attribute('gidNumber') is None:
             mkgrp = True
-            attrs['gidNumber'] = attrs['uidNumber']
-        if 'loginShell' not in attrs:
+            self.gidNumber = self.uidNumber
+        if self.get_attribute('homeDirectory') is None:
+            self.homeDirectory = '/home/' + self.uid
+
+        if mkgrp:
+            self.create_personal_group()
+
+
+        if 'loginShell' not in attrs or "special_shell" in attrs['loginShell']:
             attrs['loginShell'] = User.first_login_shell
+
+
+        self.objectClass += 'posixAccount'
+        
+        self.setup_samba_account()
+
+
         if 'userPassword' in attrs:
             password = attrs['userPassword']
             del attrs['userPassword']
         else:
             password = generate_password()
-        if 'tcdnetsoc_membership_year' not in attrs:
-            attrs['tcdnetsoc_membership_year'] = [current_session()]
-        attrs['homeDirectory'] = '/home/' + attrs['uid']
 
+        print "Password for %s set to %s" % (self.uid, password)
+        self.passwd(password)
 
-        u = super(User,cls).create(**attrs)
-
-
-        if mkgrp:
-            g = PersonalGroup.create(cn = u.uid,
-                                     member = [u],
-                                     gidNumber = u.gidNumber)
-            g.sambaSID = g.gen_samba_sid()
-            g.sambaGroupType = 2
-            g.objectClass += 'sambaGroupMapping'
-
-
-        print "Password for %s set to %s" % (u.uid, password)
-        u.passwd(password)
                             
-                            
-        if 'posixAccount' not in u.objectClass:
-            u.objectClass += 'posixAccount'
-        if 'sambaSID' not in attrs:
-            u.sambaSID = u.gen_samba_sid()
-        if 'sambaPrimaryGroupSID' not in attrs:
-            u.sambaPrimaryGroupSID = u.get_personal_group().gen_samba_sid()
-        if 'sambaSamAccount' not in u.objectClass:
-            u.objectClass += 'sambaSamAccount'
-
 
         u.memberOf += Privilege("shell")
         u.memberOf += Privilege("webspace")
