@@ -57,6 +57,7 @@ class User(NDObject):
     refers to their PersonalGroup (see below)'''
     rdn_attr = 'uid'
     default_objectclass = ['tcdnetsoc-person']
+    default_search_attrs = ['cn','uid']
 
     root_DN = "cn=root,dc=netsoc,dc=tcd,dc=ie"
 
@@ -745,12 +746,11 @@ Attribute('serialNumber', int)
 Attribute('tcdnetsoc_membership_year', [str])
 Attribute('tcdnetsoc_ISS_username', str)
 Attribute('loginShell', str)
-Attribute('sn', str)
-Attribute('uid', str, match_exact)
+Attribute('uid', str, match_like)
 Attribute('uidNumber', int)
 Attribute('gidNumber', int)
 Attribute('homeDirectory', str)
-Attribute('cn', str)
+Attribute('cn', str, match_like)
 Attribute('userPassword', str)
 Attribute('mail', str)
 Attribute('tcdnetsoc_admin_comment', [str])

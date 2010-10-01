@@ -378,23 +378,39 @@ class LDAPObject(object):
         return ret_obj
 
     @classmethod
-    def search(cls, filter):
+    def search(cls, filter=None, **kw):
         '''Search for instances of this class in the LDAP tree'''
-        #FIXME: list or generator?? search or search_s??
-        for (dn, _) in lc.search(cls.cls_dn_str, ldap.SCOPE_SUBTREE, filter.filterstr, []):
-            if dn_to_tuple(dn) not in LDAPClass._classmap:
-                subcls = LDAPClass.get_class_by_dn(dn)
-                assert(issubclass(subcls, cls))
-                yield subcls(obj_dn = dn)
 
+        if filter == None:
+            filter = SearchFilter.all(**kw)
+
+        if type(filter) == str:
+            if hasattr(cls, "default_search_attrs"):
+                filter = SearchFilter.any(**dict([(a,filter) for a in cls.default_search_attrs]))
+            else:
+                raise Exception("No query fields provided")
+
+    
+
+        #FIXME: list or generator?? search or search_s??
+        def results():
+            for (dn, _) in lc.search(cls.cls_dn_str, ldap.SCOPE_SUBTREE, filter.filterstr, []):
+                if dn_to_tuple(dn) not in LDAPClass._classmap:
+                    subcls = LDAPClass.get_class_by_dn(dn)
+                    assert(issubclass(subcls, cls))
+                    yield subcls(obj_dn = dn)
+        return list(results())
 
 
 
 
 
 match_exact = lambda attr, value: "(%s=%s)" % (attr, ldap.filter.escape_filter_chars(value))
+match_wildcard = lambda attr, value: "(%s=%s)" % (attr, ldap.filter.escape_filter_chars(value).replace("\\2a","*"))
 match_substring = lambda attr, value: "(%s=*%s*)" % (attr, ldap.filter.escape_filter_chars(value))
 match_exact_or_substring = lambda attr, value: "(|%s%s)" % (match_exact(attr, value), match_substring(attr, value))
+match_wildcard_or_substring = lambda attr, value: "(|%s%s)" % (match_wildcard(attr,value), match_substring(attr, value))
+match_like = lambda attr, value: "(%s~=%s)" % (attr, ldap.filter.escape_filter_chars(value))
 def match_ref(cls):
     if not issubclass(cls, LDAPObject):
         raise TypeError("%s is not an LDAP-mapped class" % cls)
@@ -410,7 +426,7 @@ def default_match(type):
     if type is int:
         return match_exact
     elif type is str:
-        return match_exact_or_substring
+        return match_wildcard_or_substring
     elif issubclass(type, LDAPObject):
         return match_ref(type)
     else:
