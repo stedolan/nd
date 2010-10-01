@@ -2,8 +2,8 @@
 
 import email, email.parser, subprocess, os.path
 
-default_from_address = None
-default_template_location = os.path.dirname(__file__) + "/messages"
+default_from_address = "support@netsoc.tcd.ie"
+default_template_location = os.path.abspath(os.path.dirname(__file__)) + "/messages"
 
 def sendmail(template_file, dict=None, **kwargs):
     if dict is None: dict = {}
