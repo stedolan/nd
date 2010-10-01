@@ -200,7 +200,10 @@ class LDAPObject(object):
         return self._dn
 
     def __repr__(self):
-        return '<' + type(self).__name__ + " " + self.get_dn() + '>'
+        if self.exists():
+            return '<' + type(self).__name__ + " " + self.get_dn() + '>'
+        else:
+            return "<no such object (%s)>" % type(self).__name__
 
     # Objects are equal if they refer to the same node in the LDAP tree
     def __eq__(self, other):
