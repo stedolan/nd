@@ -569,8 +569,10 @@ class ValueSet(object):
 
 
     def add(self, val):
-        '''Add a value to the set. This fails with an exception if the value is
+        '''Add a value to the set. This is a no-op if the value is
         already present'''
+        if val in self:
+            return
         ldname = self.attr.get_ldap_name()
         obj = self.obj
         attr = self.attr
