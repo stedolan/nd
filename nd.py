@@ -75,13 +75,6 @@ class User(NDObject):
         """Read a user's ~/.plan file"""
         return read_small_file(self.homeDirectory + "/.plan")
 
-
-    def get_full_name(self):
-        gecos = self.get_attribute("gecos")
-        if gecos is None: return None
-        if "," in gecos: return gecos.split(",")[0]
-        return gecos
-
     def has_account(self):
         return 'posixAccount' in self.objectClass
 
