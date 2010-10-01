@@ -83,7 +83,7 @@ class User(NDObject):
         return gecos
 
     def has_account(self):
-        return 'posixAccount' in self.objectClass and self.can_bind()
+        return 'posixAccount' in self.objectClass
 
     def gen_samba_sid(self):
         assert self.has_account()
@@ -191,73 +191,91 @@ class User(NDObject):
 
 
 
-    disabled_shells = ['renew','bold','expired','dead']
-    disabled_shells_base = "/usr/local/special_shells/"
     first_login_shell = "/usr/local/special_shells/accept_AUP"
     homedir_pattern = "/home/%s"
     default_login_shell = "/bin/bash"
-    states = ['active','disabled','renew','bold','expired','dead']
 
-    def _has_disabled_shell(self):
-        sh = self.get_attribute("loginShell")
-        return sh is not None and sh != User.first_login_shell and sh.startswith(User.disabled_shells_base)
+    # These are the states for users with accounts
+    # In theory, there is also a state "archived", when the posixAccount objectclass is removed from the
+    # user and their home directories are archived
+    states = ['shell','renew','bold','expired','dead','archived']
 
     def get_state(self):
         if self.has_account():
-            disabled_shell = self._has_disabled_shell()
-            if self.has_priv("shell"):
-                if disabled_shell:
-                    lerr(repr(self) + " is active, but has shell " + self.loginShell)
-                return "active"
-            else:
-                if not disabled_shell:
-                    lerr(repr(self) + " is disabled, but has shell " + self.loginShell)
-                    return "bold" # abitrary default, this shouldn't happen
-                else:
-                    return sh[len(User.disabled_shells_base):]
-        else:
-            return "disabled"
+            for state in User.states:
+                if state != "archived" and self in Privilege(state):
+                    return state
 
-    def set_state(self, newst):
+        return "archived"
+
+
+    def set_state(self, newst, newpasswd = None):
         assert newst in User.states
         st = self.get_state()
         if st == newst:
             return
-        if newst == "disabled":
-            self.objectClass -= "posixAccount"
-            # FIXME: remove other privileges as well??
-            if self.has_priv("shell"):
-                Privilege("shell").member -= self
-            del self.userPassword
-            return
+        if newst == "archived":
+#            self.objectClass -= "posixAccount"
+#            # FIXME: remove other privileges as well??
+#            if self.has_priv("shell"):
+#                Privilege("shell").member -= self
+#            del self.userPassword
+#            return
+            raise Exception("archiving accounts not yet implemented")
 
-        if st == "disabled":
-            if self._has_disabled_shell():
-                prevstate = self.loginShell[len(User.disabled_shells_base):]
-                if newst != prevstate:
-                    raise Exception("Trying to change state of %s from disabled to %s, although account was %s" % (self, newst, prevstate))
-                
-            assert not self.has_priv("shell")
-            if not PersonalGroup(self.uid).exists():
-                PersonalGroup.create(cn=self.uid,
-                                     objectClass=["tcdnetsoc-group"],
-                                     gidNumber=self.uidNumber,
-                                     member=[self])
-            self.gidNumber = self.uidNumber
-            self.homeDirectory = User.homedir_pattern % self.uid
-            self.objectClass += "posixAccount"
-            Privilege("shell").member += self
-
-        sh = self.get_attribute("loginShell")
-        if newst == "active":
-            if sh is None:
-                newsh = User.first_login_shell
-            else:
-                newsh = User.default_login_shell
+        elif st == "archived":
+            raise Exception("un-archiving accounts not yet implemented")
+#            if self._has_disabled_shell():
+#                prevstate = self.loginShell[len(User.disabled_shells_base):]
+#                if newst != prevstate:
+#                    raise Exception("Trying to change state of %s from disabled to %s, although account was %s" % (self, newst, prevstate))
+#                
+#            assert not self.has_priv("shell")
+#            if not PersonalGroup(self.uid).exists():
+#                PersonalGroup.create(cn=self.uid,
+#                                     objectClass=["tcdnetsoc-group"],
+#                                     gidNumber=self.uidNumber,
+#                                     member=[self])
+#            self.gidNumber = self.uidNumber
+#            self.homeDirectory = User.homedir_pattern % self.uid
+#            self.objectClass += "posixAccount"
+#            Privilege("shell").member += self
         else:
-            newsh = User.disabled_shells_base + newst
+            Privilege(st).member -= self
+            Privilege(newst).member += self
+            if newst == "shell":
+                # adding shell, restore old password (if any)
+                if newpasswd is not None:
+                    self.passwd(newpasswd)
+                elif self.get_attribute("tcdnetsoc_saved_password") is not None:
+                    self.userPassword = self.tcdnetsoc_saved_password
+                else:
+                    pwd = generate_password()
+                    lwarn("Setting password for %s to %s", self.uid, pwd)
+                    self.passwd(pwd)
+                
+                # (re-)enable Samba
+                if 'sambaSamAccount' not in self.objectClass:
+                    self.objectClass += 'sambaSamAccount'
+    
+                # set shell if necessary
+                if self.get_attribute("loginShell") is None:
+                    self.loginShell = User.first_login_shell
+            else:
+                # removing shell, save old password
+                if self.can_bind():
+                    self.tcdnetsoc_saved_password = self.userPassword
+                    del self.userPassword
 
-        self.loginShell = newsh
+                # possibly remove privileges
+                if newst in ["bold","dead"]:
+                    for g in list(self.memberOf):
+                        if isinstance(g, Privilege) and g.cn != newst:
+                            self.memberOf -= g
+                
+                # remove samba access
+                if 'sambaSamAccount' in self.objectClass:
+                    self.objectClass -= 'sambaSamAccount'
 
     def get_correct_state(self):
         # Does this person automatically get a shell?
@@ -276,19 +294,16 @@ class User(NDObject):
         entitled_to_shell = noexpire or (current_member and current_tcd)
         
         st = self.get_state()
-        if st in ["active", "renew", "expired"]:
+        if st in ["shell", "renew", "expired"]:
             if entitled_to_shell:
-                s = "active"
+                s = "shell"
             else:
                 if entitled_to_renew:
                     s = "renew"
                 else:
                     s = "expired"
-        elif st == "disabled":
-            if not self._has_disabled_shell():
-                s = "active"
-            else:
-                s = "disabled"
+        elif st == "archived":
+            s = "archived"
         elif st == "bold":
             s = "bold"
         elif st == "dead":
@@ -297,18 +312,26 @@ class User(NDObject):
 
     def check(self):
         assert 'tcdnetsoc-person' in self.objectClass
+
+        stategroups = [Privilege(x) for x in User.states if x != "archived"]
+        currentstategroups = [g for g in stategroups if self in g]
+
         st = self.get_state()
-        if st == "disabled":
+        if st == "archived":
             assert not self.has_account()
-            assert not self.has_priv("shell")
-            assert self.get_attribute('userPassword') is None
+            assert not self.can_bind()
+            assert len(currentstategroups) == 0
         else:
             assert self.has_account()
+            if st == "shell":
+                assert self.can_bind()
+                assert 'sambaSamAccount' in self.objectClass
+            assert len(currentstategroups) == 1 and currentstategroups[0].cn == st
+
             assert self.gidNumber == self.uidNumber
-            assert 'posixAccount' in self.objectClass
             assert self.get_personal_group().exists()
 
-            assert 'sambaSamAccount' in self.objectClass
+
             assert self.sambaSID == self.gen_samba_sid()
             assert self.get_personal_group().sambaSID == self.sambaPrimaryGroupSID
 
