@@ -96,3 +96,7 @@ def modrdn(l, dn, newrdn):
 def passwd(l, dn, oldpw, newpw):
     ldebug("Changing password for %s" % dn)
     l.passwd_s(dn, oldpw, newpw)
+
+@with_ldap_connection
+def whoami(l):
+    return l.whoami_s()

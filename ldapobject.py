@@ -37,6 +37,10 @@ def tuple_to_dn(t):
                                ldap.dn.escape_dn_chars(val))
                     for (attr,val) in t)
 
+def whoami():
+    return lc.whoami()
+
+
 class LDAPClass(type):
     '''Classes which are mapped to LDAP. LDAPClass is used as a metaclass for
     LDAP-mapped classes. So, a class User might subclass LDAPObject and would
