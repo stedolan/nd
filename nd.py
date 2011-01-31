@@ -4,6 +4,7 @@ from ldapobject import *
 import pwd, grp, posix, os, stat, time
 import re
 from sendmail import *
+import accountrequests
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -86,6 +87,12 @@ class User(NDObject):
 
     @staticmethod
     def username_is_valid(name):
+        '''Test whether a potential username is valid. If the username
+        is already taken, this function will return True.
+
+        Valid usernames must match the valid_username_regex setting
+        (i.e. be short and of sensible characters), and must not 
+        be one of the bad_usernames (e.g. root)'''
         regex = Setting("valid_username_regex").tcdnetsoc_value.first()
         return \
             re.match("^" + regex + "$", name) is not None \
@@ -118,6 +125,50 @@ class User(NDObject):
     def mark_member(self):
         if current_session() not in self.tcdnetsoc_membership_year:
             self.tcdnetsoc_membership_year += current_session()
+
+    def send_new_account_email(self):
+        '''Sends either the "You've Renewed, Netsoc Still Works" email, or the
+        "Please Finish Signing Up and Get And Account" email.
+
+        Requires that the user is a current member, see mark_member.
+
+        Users who already have shell accounts are assumed to be renewing'''
+        assert current_session() in self.tcdnetsoc_membership_year
+        st = self.get_state()
+        assert st in ["newmember","shell"]
+        if st == "newmember":
+            # create a url and send it to them
+            url = accountrequests.make_signup_url(self)
+            print "Sending account_creation email for %r to %s" % (self,self.mail)
+            sendmail("account_creation", to=self.mail, url=url)
+        else:
+            # just send an email
+            print "Sending account_renewed email for %r to %s" % (self,self.mail)
+            sendmail("account_renewed", to=self.mail, username=self.uid)
+
+    def comment(self, msg):
+        self.tcdnetsoc_admin_comment += '%s: %s' % (time.asctime(), msg)
+
+    def merge_into(self, other):
+        assert self.get_state() == 'newmember'
+        assert other.get_state() in ['shell','renew','bold','expired','dead']
+        assert current_session() in self.tcdnetsoc_membership_year
+        assert current_session() not in other.tcdnetsoc_membership_year
+        issusername = self.get_attribute("tcdnetsoc_ISS_username") or other.get_attribute("tcdnetsoc_ISS_username")
+        if other.get_attribute("tcdnetsoc_ISS_username") is not None:
+            assert other.tcdnetsoc_ISS_username == issusername
+        else:
+            other.tcdnetsoc_ISS_username = issusername
+        if self.cn != other.cn:
+            lwarn("Names %s and %s don't match when renewing account %s" % (self.cn, other.cn, other.uid))
+            other.comment("Renewed by account with non-matching name %s" % self.cn)
+        if self.mail != other.mail:
+            lwarn("Emails %s and %s don't match when renewing account %s"% (self.mail, other.mail, other.uid))
+            other.comment("Renewed by account with non-matching mail %s" % self.mail)
+        
+        self.tcdnetsoc_membership_year -= current_session()
+        other.tcdnetsoc_membership_year += current_session()
+        self.destroy()
 
     def passwd(self, new, old=None):
         '''Change the password of a user from "old" to "new". If the old password
@@ -225,7 +276,10 @@ class User(NDObject):
             return
         if st == "newmember" and newst not in ["archived","shell","newmember"]:
             raise Exception("User doesn't have an account, so it can't be set to %s" % newst)
-        if newst == "newmember":
+
+        if (st, newst) == ("archived","newmember"):
+            self.tcdnetsoc_saved_password = "***newmember***"
+        elif newst == "newmember":
             raise Exception("that makes no sense")
         elif newst == "archived":
 #            self.objectClass -= "posixAccount"
@@ -420,8 +474,7 @@ class User(NDObject):
         if 'uidNumber' not in attrs:
             attrs['uidNumber'] = UIDAllocator.alloc()
 
-        makeshell = 'uid' in attrs
-        if 'uid' not in attrs:
+        if 'uid' not in attrs or attrs['uid'] == "":
             attrs['uid'] = "user%d" % attrs['uidNumber']
 
         if 'tcdnetsoc_membership_year' not in attrs:
@@ -434,9 +487,6 @@ class User(NDObject):
         attrs['tcdnetsoc_saved_password'] = '***newmember***'
         u = super(User,cls).create(**attrs)
 
-        if makeshell:
-            u.set_state("shell")
-        
         return u
 
     def create_personal_group(self):
@@ -765,3 +815,4 @@ Attribute('sambaSID', str)
 Attribute('sambaPrimaryGroupSID', str)
 Attribute('sambaGroupType', int)
 Attribute('tcdnetsoc_mysql_pw', str)
+Attribute('tcdnetsoc_saved_password', str)
