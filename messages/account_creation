@@ -1,0 +1,21 @@
+From: support@netsoc.tcd.ie
+To: %(to)s
+Subject: Create your Netsoc account
+
+Welcome to Netsoc!
+
+To finish creating your Netsoc account, you'll have to choose a
+username and password. Go to this address:
+
+	 %(url)s
+
+and fill in the form to set up your account!
+
+The netsoc support wiki has all the information you'll need to 
+get started, just visit the New Members link on the main page.
+(http://www.netsoc.tcd.ie)
+
+For any queries, please contact support@netsoc.tcd.ie.
+
+Thanks,
+Netsoc Support

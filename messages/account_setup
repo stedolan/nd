@@ -1,0 +1,20 @@
+From: support@netsoc.tcd.ie
+To: %(to)s
+Subject: Netsoc account created
+
+You've successfully set up your new Netsoc account.
+Please email support@netsoc.tcd.ie if you lose your password 
+or have any difficulties using the netsoc servers.
+
+You can log into IRC and chat with the rest of Netsoc by
+using SSH to "login.netsoc.tcd.ie" and running "chat"
+(download Putty from http://netsoc.tcd.ie if you're on
+Windows).
+
+For information about how to use Netsoc services, visit
+the Support Wiki at http://support.netsoc.tcd.ie.
+
+Thanks for joining Netsoc!
+
+Netsoc Support
+
