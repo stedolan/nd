@@ -4,7 +4,11 @@ from ldapobject import *
 import pwd, grp, posix, os, stat, time
 import re
 from sendmail import *
-import accountrequests
+
+try:
+    import accountrequests
+except Exception:
+    bound_as_root = False
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -134,6 +138,8 @@ class User(NDObject):
 
         Users who already have shell accounts are assumed to be renewing'''
         assert current_session() in self.tcdnetsoc_membership_year
+        assert bound_as_root
+        
         st = self.get_state()
         assert st in ["newmember","shell"]
         if st == "newmember":
