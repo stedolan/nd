@@ -7,8 +7,9 @@ from sendmail import *
 
 try:
     import accountrequests
+    can_request_accounts = True
 except Exception:
-    bound_as_root = False
+    can_request_accounts = False
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -138,7 +139,7 @@ class User(NDObject):
 
         Users who already have shell accounts are assumed to be renewing'''
         assert current_session() in self.tcdnetsoc_membership_year
-        assert bound_as_root
+        assert can_request_accounts
         
         st = self.get_state()
         assert st in ["newmember","shell"]
