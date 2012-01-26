@@ -86,6 +86,9 @@ class User(NDObject):
     def has_account(self):
         return 'posixAccount' in self.objectClass
 
+    def is_current_member(self):
+        return current_session() in self.tcdnetsoc_membership_year
+
     def gen_samba_sid(self):
         assert self.has_account()
         return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
@@ -138,7 +141,7 @@ class User(NDObject):
         Requires that the user is a current member, see mark_member.
 
         Users who already have shell accounts are assumed to be renewing'''
-        assert current_session() in self.tcdnetsoc_membership_year
+        assert self.is_current_member()
         assert can_request_accounts
         
         st = self.get_state()
@@ -159,8 +162,8 @@ class User(NDObject):
     def merge_into(self, other):
         assert self.get_state() == 'newmember'
         assert other.get_state() in ['shell','renew','bold','expired','dead']
-        assert current_session() in self.tcdnetsoc_membership_year
-        assert current_session() not in other.tcdnetsoc_membership_year
+        assert self.is_current_member()
+        assert not other.is_current_member()
         issusername = self.get_attribute("tcdnetsoc_ISS_username") or other.get_attribute("tcdnetsoc_ISS_username")
         if other.get_attribute("tcdnetsoc_ISS_username") is not None:
             assert other.tcdnetsoc_ISS_username == issusername
@@ -218,7 +221,7 @@ class User(NDObject):
 
     def info(self):
         name = self.cn
-        isCurrentMember = current_session() in self.tcdnetsoc_membership_year
+        isCurrentMember = self.is_current_member()
         hasShellAcct = 'posixAccount' in self.objectClass
         canBind = self.can_bind()
         groups = list(self.memberOf)
@@ -394,7 +397,7 @@ class User(NDObject):
         current_tcd = True # FIXME
 
         # Has this person paid the membership fee this year?
-        current_member = current_session() in self.tcdnetsoc_membership_year
+        current_member = self.is_current_member()
 
         entitled_to_renew = noexpire or alwaysrenewable or current_tcd
         entitled_to_shell = noexpire or (current_member and current_tcd)
