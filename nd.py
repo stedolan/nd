@@ -129,10 +129,13 @@ class User(NDObject):
     def get_personal_group(self):
         return PersonalGroup(self.uid)
 
-
     def mark_member(self):
         if current_session() not in self.tcdnetsoc_membership_year:
             self.tcdnetsoc_membership_year += current_session()
+
+    def sendmail(self, msg, **kw):
+        ''' Email the given message to this User '''
+        sendmail(msg, {"To": '"%s" <%s>' % (self.cn, self.mail)}, **kw)
 
     def send_new_account_email(self):
         '''Sends either the "You've Renewed, Netsoc Still Works" email, or the
