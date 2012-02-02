@@ -130,7 +130,7 @@ class User(NDObject):
         return PersonalGroup(self.uid)
 
     def mark_member(self):
-        if current_session() not in self.tcdnetsoc_membership_year:
+        if not self.is_current_member():
             self.tcdnetsoc_membership_year += current_session()
 
     def sendmail(self, msg, **kw):
@@ -217,6 +217,9 @@ class User(NDObject):
 
     def has_priv(self, name):
         return self in Privilege(name)
+        
+    def on_council(self):
+        return self in Group('council')
     
     @staticmethod
     def with_priv(self, name):
