@@ -49,6 +49,16 @@ def generate_password():
     stdout, stderr = subprocess.Popen(["pwgen", "-nc"],stdout=subprocess.PIPE).communicate()
     return stdout.strip()
 
+def bad_usernames():
+    return Setting('bad_usernames').tcdnetsoc_value
+
+def forbid_username(username):
+    '''Prevent new members from signing up with the given username'''
+   bad_usernames().add(username)
+    
+def unforbid_username(username):
+    if username in bad_usernames():
+        bad_usernames().remove(username)
 
 
 class NDObject(LDAPObject):
