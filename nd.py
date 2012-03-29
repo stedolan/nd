@@ -53,7 +53,7 @@ def bad_usernames():
     return Setting('bad_usernames').tcdnetsoc_value
 
 def forbid_username(username):
-    '''Prevent new members from signing up with the given username'''
+   '''Prevent new members from signing up with the given username'''
    bad_usernames().add(username)
     
 def unforbid_username(username):

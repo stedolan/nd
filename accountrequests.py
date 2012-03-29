@@ -155,7 +155,7 @@ def make_signup_url(user):
     print "Generating single-use code for userid %d to change their account state" % user.uidNumber
     k = create_key(setup_account, uidnumber = user.uidNumber)
     u = create_mac(str(user.uidNumber))
-    return "http://www.netsoc.tcd.ie/useraccounts/signup.php?code=%s&userid=%s" % (k,u)
+    return "https://signup.netsoc.tcd.ie/signup.php?code=%s&userid=%s" % (k,u)
 
 
 ########### Authorization logic (checking request received over network against stored parameters)
