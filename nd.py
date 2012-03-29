@@ -113,14 +113,18 @@ class User(NDObject):
             
         
     @staticmethod
-    def forbid_username(username):
-       '''Prevent new members from signing up with the given username'''
-       User.bad_usernames().add(username)
+    def forbid_username(name):
+        '''Prevent new members from signing up with the given username'''
+
+        if User(name).exists():
+       	    raise Exception('username "%s" is already taken' % name)
+
+        User.bad_usernames().add(name)
     
     @staticmethod
-    def unforbid_username(username):
-        if username in User.bad_usernames():
-            User.bad_usernames().remove(username)
+    def unforbid_username(name):
+        if name in User.bad_usernames():
+            User.bad_usernames().remove(name)
 
 
     def destroy(self):
