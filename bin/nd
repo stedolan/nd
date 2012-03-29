@@ -4,8 +4,8 @@
 
 
 NDPATH='/usr/local/nd'
-CMDS= "$NDPATH/cmd.py"
-PYTHON=$('which python')
+CMDS="$NDPATH/cmds.py"
+PYTHON=$(which python)
 
 die() {
 	echo "$1" > /dev/stderr
@@ -16,4 +16,4 @@ die() {
 [ -f "$CMDS" ] || die "command-line module for ND not found in $NDPATH"
 [ -x "$PYTHON" ] || die "could not execute python interpreter"
 
-exec "$PYTHON" "$NDPATH/cmds.py" "$@"
+exec "$PYTHON" "$CMDS" "$@"
