@@ -1,4 +1,4 @@
-import gdbm, socket, time, md5, os, sys, pwd
+import gdbm, socket, time, hashlib, os, sys, pwd
 
 run_as_server = (__name__ == '__main__')
 if run_as_server:
@@ -136,7 +136,7 @@ def dump_codes():
 ########### Hashcodes for frontend
 
 def create_mac(data):
-    hash = lambda x: md5.md5(x).hexdigest()
+    hash = lambda x: hashlib.md5(x).hexdigest()
     return hash("Although your world wonders me, " + hash("olololololololol" + data)) + "/" + data
 
 def verify_mac(mac):
