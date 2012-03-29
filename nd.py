@@ -236,7 +236,13 @@ class User(NDObject):
 
     def has_priv(self, name):
         return self in Privilege(name)
-        
+    
+    def grant_priv(self, name):
+        self.memberOf += Privilege(name)
+
+    def revoke_priv(self, name):
+        self.memberOf -= Privilege(name)
+
     def on_council(self):
         return self in Group('council')
     
