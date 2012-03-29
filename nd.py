@@ -49,16 +49,6 @@ def generate_password():
     stdout, stderr = subprocess.Popen(["pwgen", "-nc"],stdout=subprocess.PIPE).communicate()
     return stdout.strip()
 
-def bad_usernames():
-    return Setting('bad_usernames').tcdnetsoc_value
-
-def forbid_username(username):
-   '''Prevent new members from signing up with the given username'''
-   bad_usernames().add(username)
-    
-def unforbid_username(username):
-    if username in bad_usernames():
-        bad_usernames().remove(username)
 
 
 class NDObject(LDAPObject):
@@ -104,6 +94,10 @@ class User(NDObject):
         return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
 
     @staticmethod
+    def bad_usernames():
+        return Setting('bad_usernames').tcdnetsoc_value
+
+    @staticmethod
     def username_is_valid(name):
         '''Test whether a potential username is valid. If the username
         is already taken, this function will return True.
@@ -115,8 +109,19 @@ class User(NDObject):
         return \
             re.match("^" + regex + "$", name) is not None \
             and \
-            name not in Setting("bad_usernames").tcdnetsoc_value
+            name not in User.bad_usernames()
             
+        
+    @staticmethod
+    def forbid_username(username):
+       '''Prevent new members from signing up with the given username'''
+       User.bad_usernames().add(username)
+    
+    @staticmethod
+    def unforbid_username(username):
+        if username in User.bad_usernames():
+            User.bad_usernames().remove(username)
+
 
     def destroy(self):
         # also destroy group
