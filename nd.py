@@ -247,7 +247,8 @@ class User(NDObject):
         return self in Group('council')
     
     @staticmethod
-    def with_priv(self, name):
+    def with_priv(name):
+        '''Return all Users holding the given Privilege'''
         return Privilege(name).member
 
     def info(self):
