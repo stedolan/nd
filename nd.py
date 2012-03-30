@@ -158,9 +158,9 @@ class User(NDObject):
 
     def send_new_account_email(self):
         '''Sends either the "You've Renewed, Netsoc Still Works" email, or the
-        "Please Finish Signing Up and Get And Account" email.
+        "Please Finish Signing Up and Get Your Account" email.
 
-        Requires that the user is a current member, see mark_member.
+        Requires that the user be a current member, see mark_member.
 
         Users who already have shell accounts are assumed to be renewing'''
         assert self.is_current_member()
@@ -394,7 +394,7 @@ class User(NDObject):
                 # renew users didn't lose it
                 # and bold/dead users don't get it without admin intervention
                 if st in ["expired", "newmember"]:
-                    self.memberOf += Privilege("webspace")
+                    self.grant_priv("webspace")
 
                 self.reset_mysql_pw()
                 
@@ -593,16 +593,15 @@ class User(NDObject):
         print "Password for %s set to %s" % (self.uid, password)
         self.passwd(password)
 
-                            
+        self.grant_priv("shell")
+        self.grant_priv("webspace")
 
-        u.memberOf += Privilege("shell")
-        u.memberOf += Privilege("webspace")
         for fs, q in User.default_quotas.iteritems():
-            u.quota(fs).set(q)
+            self.quota(fs).set(q)
 
-        u.reset_mysql_pw()
+        self.reset_mysql_pw()
 
-        return u
+        return self
 
     # Disk quotas
     class fs:
@@ -622,6 +621,7 @@ class User(NDObject):
             self.fs = fs
 
         _sizes = {'T': 1024 ** 4, 'G': 1024 ** 3, 'M': 1024 ** 2, 'K': 1024}
+        
         # bytes <-> human-readable size conversions
         @staticmethod
         def parse_size(sz):
@@ -634,6 +634,7 @@ class User(NDObject):
                     sz = sz[0:-1]
                     break
             return int(float(sz) * m)
+
         @staticmethod
         def write_size(sz):
             if sz == 0: return "unlimited"
@@ -651,11 +652,13 @@ class User(NDObject):
                 if i.startswith(self.fs + ":"):
                     return [int(x) for x in i.split(":")[2:6]]
             return None, None, None, None
+
         def _set_quota(self, l):
             for i in self.user.tcdnetsoc_diskquota:
                 if i.startswith(self.fs + ":"):
                     self.user.tcdnetsoc_diskquota -= i
             self.user.tcdnetsoc_diskquota += ":".join([self.fs] + [str(x) for x in l])
+
         def _get_usage(self):
             for i in self.user.tcdnetsoc_diskusage:
                 if i.startswith(self.fs + ":"):
@@ -689,8 +692,6 @@ class User(NDObject):
                 s += " [with changes not yet applied]"
             return s
             
-                    
-
 
 class Group(NDObject):
     '''A group of users. Groups may contain any number of users, including zero'''
