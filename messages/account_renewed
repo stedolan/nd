@@ -13,12 +13,6 @@ You can use your webspace on Cube by logging in via SSH (download PuTTY
 from http://netsoc.tcd.ie and log into cube.netsoc.tcd.ie) and running
 "setup_webspace".
 
-For those of you who still have websites running on Matrix (our old
-server), you should know that Netsoc will be decomissioning Matrix soon.
-When this happens, websites will be moved to Cube. If you would like to
-use Cube for webhosting before then, please mail support@netsoc.tcd.ie
-and we'll set it up.
-
 If you've forgotten your password, or have any trouble logging in,
 please contact support@netsoc.tcd.ie.
 
