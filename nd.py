@@ -231,6 +231,9 @@ class User(NDObject):
         else:
             sendmail("password_reset", to=addr, username=self.uid, password=pw)
 
+    def sendmail(self, msg, **kw):
+        sendmail(msg, {"To": '"%s" <%s>' % (self.cn, self.mail)}, **kw)
+
     def has_access(self, service):
         return service.has_access(self)
 
