@@ -4,7 +4,12 @@ from ldapobject import *
 import pwd, grp, posix, os, stat, time
 import re
 from sendmail import *
-import accountrequests
+
+try:
+    import accountrequests
+    can_request_accounts = True
+except Exception:
+    can_request_accounts = False
 
 def current_session():
     '''Current session of Netsoc, e.g. "2008-2009"
@@ -81,9 +86,16 @@ class User(NDObject):
     def has_account(self):
         return 'posixAccount' in self.objectClass
 
+    def is_current_member(self):
+        return current_session() in self.tcdnetsoc_membership_year
+
     def gen_samba_sid(self):
         assert self.has_account()
         return "%s-%s" % (_get_samba_domain_sid(), self.uidNumber * 2 + 1000)
+
+    @staticmethod
+    def bad_usernames():
+        return Setting('bad_usernames').tcdnetsoc_value
 
     @staticmethod
     def username_is_valid(name):
@@ -97,8 +109,23 @@ class User(NDObject):
         return \
             re.match("^" + regex + "$", name) is not None \
             and \
-            name not in Setting("bad_usernames").tcdnetsoc_value
+            name not in User.bad_usernames()
             
+        
+    @staticmethod
+    def forbid_username(name):
+        '''Prevent new members from signing up with the given username'''
+
+        if User(name).exists():
+       	    raise Exception('username "%s" is already taken' % name)
+
+        User.bad_usernames().add(name)
+    
+    @staticmethod
+    def unforbid_username(name):
+        if name in User.bad_usernames():
+            User.bad_usernames().remove(name)
+
 
     def destroy(self):
         # also destroy group
@@ -121,19 +148,24 @@ class User(NDObject):
     def get_personal_group(self):
         return PersonalGroup(self.uid)
 
-
     def mark_member(self):
-        if current_session() not in self.tcdnetsoc_membership_year:
+        if not self.is_current_member():
             self.tcdnetsoc_membership_year += current_session()
+
+    def sendmail(self, msg, **kw):
+        ''' Email the given message to this User '''
+        sendmail(msg, {"To": '"%s" <%s>' % (self.cn, self.mail)}, **kw)
 
     def send_new_account_email(self):
         '''Sends either the "You've Renewed, Netsoc Still Works" email, or the
-        "Please Finish Signing Up and Get And Account" email.
+        "Please Finish Signing Up and Get Your Account" email.
 
-        Requires that the user is a current member, see mark_member.
+        Requires that the user be a current member, see mark_member.
 
         Users who already have shell accounts are assumed to be renewing'''
-        assert current_session() in self.tcdnetsoc_membership_year
+        assert self.is_current_member()
+        assert can_request_accounts
+        
         st = self.get_state()
         assert st in ["newmember","shell"]
         if st == "newmember":
@@ -152,8 +184,8 @@ class User(NDObject):
     def merge_into(self, other):
         assert self.get_state() == 'newmember'
         assert other.get_state() in ['shell','renew','bold','expired','dead']
-        assert current_session() in self.tcdnetsoc_membership_year
-        assert current_session() not in other.tcdnetsoc_membership_year
+        assert self.is_current_member()
+        assert not other.is_current_member()
         issusername = self.get_attribute("tcdnetsoc_ISS_username") or other.get_attribute("tcdnetsoc_ISS_username")
         if other.get_attribute("tcdnetsoc_ISS_username") is not None:
             assert other.tcdnetsoc_ISS_username == issusername
@@ -199,19 +231,32 @@ class User(NDObject):
         else:
             sendmail("password_reset", to=addr, username=self.uid, password=pw)
 
+    def sendmail(self, msg, **kw):
+        sendmail(msg, {"To": '"%s" <%s>' % (self.cn, self.mail)}, **kw)
+
     def has_access(self, service):
         return service.has_access(self)
 
     def has_priv(self, name):
         return self in Privilege(name)
     
+    def grant_priv(self, name):
+        self.memberOf += Privilege(name)
+
+    def revoke_priv(self, name):
+        self.memberOf -= Privilege(name)
+
+    def on_council(self):
+        return self in Group('council')
+    
     @staticmethod
-    def with_priv(self, name):
+    def with_priv(name):
+        '''Return all Users holding the given Privilege'''
         return Privilege(name).member
 
     def info(self):
         name = self.cn
-        isCurrentMember = current_session() in self.tcdnetsoc_membership_year
+        isCurrentMember = self.is_current_member()
         hasShellAcct = 'posixAccount' in self.objectClass
         canBind = self.can_bind()
         groups = list(self.memberOf)
@@ -352,7 +397,7 @@ class User(NDObject):
                 # renew users didn't lose it
                 # and bold/dead users don't get it without admin intervention
                 if st in ["expired", "newmember"]:
-                    self.memberOf += Privilege("webspace")
+                    self.grant_priv("webspace")
 
                 self.reset_mysql_pw()
                 
@@ -387,7 +432,7 @@ class User(NDObject):
         current_tcd = True # FIXME
 
         # Has this person paid the membership fee this year?
-        current_member = current_session() in self.tcdnetsoc_membership_year
+        current_member = self.is_current_member()
 
         entitled_to_renew = noexpire or alwaysrenewable or current_tcd
         entitled_to_shell = noexpire or (current_member and current_tcd)
@@ -551,16 +596,15 @@ class User(NDObject):
         print "Password for %s set to %s" % (self.uid, password)
         self.passwd(password)
 
-                            
+        self.grant_priv("shell")
+        self.grant_priv("webspace")
 
-        u.memberOf += Privilege("shell")
-        u.memberOf += Privilege("webspace")
         for fs, q in User.default_quotas.iteritems():
-            u.quota(fs).set(q)
+            self.quota(fs).set(q)
 
-        u.reset_mysql_pw()
+        self.reset_mysql_pw()
 
-        return u
+        return self
 
     # Disk quotas
     class fs:
@@ -580,6 +624,7 @@ class User(NDObject):
             self.fs = fs
 
         _sizes = {'T': 1024 ** 4, 'G': 1024 ** 3, 'M': 1024 ** 2, 'K': 1024}
+        
         # bytes <-> human-readable size conversions
         @staticmethod
         def parse_size(sz):
@@ -592,6 +637,7 @@ class User(NDObject):
                     sz = sz[0:-1]
                     break
             return int(float(sz) * m)
+
         @staticmethod
         def write_size(sz):
             if sz == 0: return "unlimited"
@@ -609,11 +655,13 @@ class User(NDObject):
                 if i.startswith(self.fs + ":"):
                     return [int(x) for x in i.split(":")[2:6]]
             return None, None, None, None
+
         def _set_quota(self, l):
             for i in self.user.tcdnetsoc_diskquota:
                 if i.startswith(self.fs + ":"):
                     self.user.tcdnetsoc_diskquota -= i
             self.user.tcdnetsoc_diskquota += ":".join([self.fs] + [str(x) for x in l])
+
         def _get_usage(self):
             for i in self.user.tcdnetsoc_diskusage:
                 if i.startswith(self.fs + ":"):
@@ -647,8 +695,6 @@ class User(NDObject):
                 s += " [with changes not yet applied]"
             return s
             
-                    
-
 
 class Group(NDObject):
     '''A group of users. Groups may contain any number of users, including zero'''

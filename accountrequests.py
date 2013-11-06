@@ -1,4 +1,4 @@
-import gdbm, socket, time, md5, os, sys, pwd
+import gdbm, socket, time, hashlib, os, sys, pwd
 
 run_as_server = (__name__ == '__main__')
 if run_as_server:
@@ -136,7 +136,7 @@ def dump_codes():
 ########### Hashcodes for frontend
 
 def create_mac(data):
-    hash = lambda x: md5.md5(x).hexdigest()
+    hash = lambda x: hashlib.md5(x).hexdigest()
     return hash("Although your world wonders me, " + hash("olololololololol" + data)) + "/" + data
 
 def verify_mac(mac):
@@ -155,7 +155,7 @@ def make_signup_url(user):
     print "Generating single-use code for userid %d to change their account state" % user.uidNumber
     k = create_key(setup_account, uidnumber = user.uidNumber)
     u = create_mac(str(user.uidNumber))
-    return "http://www.netsoc.tcd.ie/useraccounts/signup.php?code=%s&userid=%s" % (k,u)
+    return "https://signup.netsoc.tcd.ie/signup.php?code=%s&userid=%s" % (k,u)
 
 
 ########### Authorization logic (checking request received over network against stored parameters)

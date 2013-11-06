@@ -1,0 +1,19 @@
+#!/bin/bash
+# Little wrapper around the command-line interface to nd
+# Stephen Shaw <stesh@netsoc.tcd.ie>
+
+
+NDPATH='/usr/local/nd'
+CMDS="$NDPATH/cmds.py"
+PYTHON=$(which python)
+
+die() {
+	echo "$1" > /dev/stderr
+	exit 1
+}
+
+
+[ -f "$CMDS" ] || die "command-line module for ND not found in $NDPATH"
+[ -x "$PYTHON" ] || die "could not execute python interpreter"
+
+exec "$PYTHON" "$CMDS" "$@"

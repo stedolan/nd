@@ -38,8 +38,8 @@ def ldap_connect(dn = None, pwd = None, host = None):
 	    l = ldap.initialize("ldapi:///")
 	    l.sasl_interactive_bind_s("", ldap.sasl.external())
 	except:
-	    # then try the host called "ldap"
-	    l = ldap.initialize("ldap://ldap")
+	    # then try the host called "ldapmaster"
+	    l = ldap.initialize("ldap://ldapmaster")
 	    uid = mod_pwd.getpwuid(os.getuid())[0]
 	    passwd = getpass.getpass()
 	    l.simple_bind_s(uidfmt % uid, passwd)

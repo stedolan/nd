@@ -199,6 +199,14 @@ class LDAPObject(object):
             obj_dn = tuple_to_dn(((type(self).rdn_attr, id),) + self.cls_dn_tuple)
         self._dn = obj_dn
 
+	try:
+            # If the case of the dn is wrong, some methods will fail
+            # This will fix it.
+            self._dn = lc.search(obj_dn, 0, None, ['dn'])[0][0]
+	except:
+            # This object is "no such object"
+            pass
+
     def get_dn(self):
         '''Return the DN of this object in string form'''
         return self._dn
